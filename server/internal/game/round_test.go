@@ -5,7 +5,7 @@ import (
 	"testing/quick"
 )
 
-func mustRS(t *testing.T, opts RuleSet) *resolvedRuleSet {
+func mustRS(t *testing.T, opts RuleSet) *Rules {
 	t.Helper()
 	rs, err := NewRuleSet(opts)
 	if err != nil {

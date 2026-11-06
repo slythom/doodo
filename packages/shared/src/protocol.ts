@@ -44,7 +44,19 @@ export type GodAction =
 // ─── Client → Serveur ────────────────────────────────────────────────
 
 export type ClientMessage =
-  | { type: 'join_game'; payload: { code: string } }
+  | {
+      type: 'join_game';
+      payload: {
+        code: string;
+        name: string;
+        clientId: string;
+        spectate?: boolean;
+        adminKey?: string;
+      };
+    }
+  | { type: 'quick_join'; payload: { name: string; clientId: string } }
+  | { type: 'quick_leave' }
+  | { type: 'start_game' }
   | { type: 'leave_game' }
   | { type: 'set_ready'; payload: { ready: boolean } }
   | { type: 'update_options'; payload: { options: TableOptions } }
@@ -61,6 +73,7 @@ export type ClientMessage =
 export type GamePhase =
   | 'lobby'
   | 'round_roll'
+  | 'god_roll' // choix des dés en mode dieu
   | 'bidding'
   | 'resolving'
   | 'ended';
@@ -85,7 +98,23 @@ interface Msg<T, P> {
   payload: P;
 }
 
+export interface ResyncSnapshot {
+  phase: GamePhase | 'god_roll';
+  options: TableOptions;
+  players: PlayerInfo[];
+  diceCounts: Record<number, number>;
+  yourDice: DieValue[];
+  currentBid: { seat: number; bid: Bid } | null;
+  turnSeat: number;
+  turnDeadline: number;
+  godDice?: Record<number, DieValue[]>;
+  standings?: Standing[];
+}
+
 export type ServerMessage =
+  | Msg<'joined', { code: string; seat: number; spectator: boolean }>
+  | Msg<'matchmaking', { state: 'waiting' | 'matched'; position?: number; size?: number }>
+  | Msg<'choose_dice', { deadline: number }>
   | Msg<'lobby_state', { players: PlayerInfo[]; options: TableOptions; code: string | null }>
   | Msg<'game_started', { options: TableOptions }>
   | Msg<'round_started', { round: number; yourDice: DieValue[]; diceCounts: Record<number, number> }>
@@ -100,6 +129,6 @@ export type ServerMessage =
   | Msg<'god_state', { allDice: Record<number, DieValue[]> }>
   | Msg<'god_powers', { actions: GodAction['action'][] }>
   | Msg<'chat', { from: number; text?: string; emote?: string }>
-  | Msg<'resync', { snapshot: unknown }>
+  | Msg<'resync', ResyncSnapshot>
   | Msg<'error', { code: string; message: string }>
   | Msg<'pong', Record<string, never>>;

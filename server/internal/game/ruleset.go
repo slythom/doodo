@@ -53,8 +53,8 @@ func RegisteredRules() []CustomRule {
 	return out
 }
 
-// resolvedRuleSet est un RuleSet validé avec ses modules de règles résolus.
-type resolvedRuleSet struct {
+// Rules est un RuleSet validé avec ses modules de règles résolus.
+type Rules struct {
 	opts  RuleSet
 	rules []CustomRule
 	bid   []BidHook
@@ -64,11 +64,11 @@ type resolvedRuleSet struct {
 
 // NewRuleSet valide les options, résout les règles perso et vérifie la
 // matrice de compatibilité (spec tech §7). Erreur si invalide.
-func NewRuleSet(opts RuleSet) (*resolvedRuleSet, error) {
+func NewRuleSet(opts RuleSet) (*Rules, error) {
 	if opts.DiceCount < minDice || opts.DiceCount > maxDice {
 		return nil, ErrBadDiceCount
 	}
-	rs := &resolvedRuleSet{opts: opts}
+	rs := &Rules{opts: opts}
 	for _, id := range opts.CustomRules {
 		factory, ok := registry[id]
 		if !ok {
@@ -101,11 +101,11 @@ func NewRuleSet(opts RuleSet) (*resolvedRuleSet, error) {
 }
 
 // Options retourne les options officielles du ruleset.
-func (rs *resolvedRuleSet) Options() RuleSet { return rs.opts }
+func (rs *Rules) Options() RuleSet { return rs.opts }
 
 // RankedSafe indique si la table est éligible aux stats (toutes les règles
 // perso doivent être ranked-safe ; spec fonc. §1.5).
-func (rs *resolvedRuleSet) RankedSafe() bool {
+func (rs *Rules) RankedSafe() bool {
 	for _, r := range rs.rules {
 		if !r.RankedSafe() {
 			return false

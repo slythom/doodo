@@ -14,10 +14,18 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
 
+	"doodo/server/internal/api"
+	"doodo/server/internal/hub"
+	"doodo/server/internal/matchmaking"
 	"doodo/server/internal/ws"
 )
 
 func main() {
+	gameHub := hub.New(os.Getenv("GOD_ADMIN_KEY"))
+	queue := matchmaking.New(gameHub.Create)
+	apiSrv := api.NewServer(gameHub)
+	wsSrv := ws.NewServer(gameHub, queue)
+
 	r := chi.NewRouter()
 	r.Use(middleware.RequestID, middleware.RealIP, middleware.Logger, middleware.Recoverer)
 
@@ -25,9 +33,11 @@ func main() {
 		w.Header().Set("Content-Type", "application/json")
 		_ = json.NewEncoder(w).Encode(map[string]string{"status": "ok"})
 	})
-
-	hub := ws.NewHub()
-	r.Get("/ws", hub.ServeHTTP)
+	r.Route("/api", func(r chi.Router) {
+		r.Get("/games", apiSrv.ListGames)
+		r.Post("/games", apiSrv.CreateGame)
+	})
+	r.Get("/ws", wsSrv.ServeHTTP)
 
 	srv := &http.Server{Addr: ":8080", Handler: r}
 

@@ -3,7 +3,7 @@ package game
 // Round est une manche en cours. Les dés sont injectés par l'appelant
 // (l'acteur lance le RNG) — le package reste sans IO.
 type Round struct {
-	rs       *resolvedRuleSet
+	rs       *Rules
 	dice     map[int][]DieValue
 	palifico bool // cette manche est une manche Palifico
 	current  Bid  // enchère courante (valide si hasBid)
@@ -13,7 +13,7 @@ type Round struct {
 
 // NewRound crée une manche. dice : seat → tirage (déjà mélangé par l'acteur).
 // palifico : true si la manche suit le passage d'un joueur à 1 dé.
-func (rs *resolvedRuleSet) NewRound(dice map[int][]DieValue, palifico bool) *Round {
+func (rs *Rules) NewRound(dice map[int][]DieValue, palifico bool) *Round {
 	d := make(map[int][]DieValue, len(dice))
 	for seat, ds := range dice {
 		d[seat] = append([]DieValue(nil), ds...)

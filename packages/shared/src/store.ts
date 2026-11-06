@@ -33,6 +33,10 @@ export interface GameState {
   turnDeadline: number | null;
   /** Vue god : dés de tous (admin/mode dieu uniquement). */
   godDice: Record<number, DieValue[]> | null;
+  /** Deadline de choix de dés en mode dieu (phase god_roll). */
+  chooseDiceDeadline: number | null;
+  /** État matchmaking (si en file de partie rapide). */
+  matchmaking: { state: 'waiting' | 'matched'; position?: number; size?: number } | null;
   revealedDice: Record<number, DieValue[]> | null;
   standings: Standing[] | null;
   chat: ChatEntry[];
@@ -52,6 +56,8 @@ export const initialState: GameState = {
   turnSeat: null,
   turnDeadline: null,
   godDice: null,
+  chooseDiceDeadline: null,
+  matchmaking: null,
   revealedDice: null,
   standings: null,
   chat: [],
@@ -71,6 +77,22 @@ export function applyServerMessage(
   msg: ServerMessage,
 ): void {
   switch (msg.type) {
+    case 'joined':
+      set(() => ({
+        mySeat: msg.payload.seat,
+        roomCode: msg.payload.code,
+        matchmaking: null,
+      }));
+      break;
+    case 'matchmaking':
+      set(() => ({ matchmaking: msg.payload }));
+      break;
+    case 'choose_dice':
+      set(() => ({
+        phase: 'god_roll',
+        chooseDiceDeadline: msg.payload.deadline,
+      }));
+      break;
     case 'lobby_state':
       set(() => ({
         players: msg.payload.players,
@@ -89,6 +111,7 @@ export function applyServerMessage(
         diceCounts: msg.payload.diceCounts,
         currentBid: null,
         revealedDice: null,
+        chooseDiceDeadline: null,
       }));
       break;
     case 'turn':
