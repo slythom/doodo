@@ -36,7 +36,7 @@ export const DEFAULT_OPTIONS: TableOptions = {
 };
 
 export type GodAction =
-  | { action: 'set_dice'; dice: DieValue[] }
+  | { action: 'set_dice'; dice: DieValue[]; seat?: number } // seat : admin uniquement
   | { action: 'force_resolve' }
   | { action: 'kick'; seat: number }
   | { action: 'end_game' };
@@ -65,7 +65,8 @@ export type ClientMessage =
   | { type: 'leave_game' }
   | { type: 'set_ready'; payload: { ready: boolean } }
   | { type: 'update_options'; payload: { options: TableOptions } }
-  | { type: 'add_bot' | 'remove_bot' | 'kick'; payload: { seat: number } }
+  | { type: 'add_bot' }
+  | { type: 'remove_bot' | 'kick'; payload: { seat: number } }
   | { type: 'bid'; payload: Bid }
   | { type: 'dudo' }
   | { type: 'calza' }

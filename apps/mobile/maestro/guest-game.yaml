@@ -1,0 +1,15 @@
+# Flow e2e Maestro : invité → table → partie avec bots.
+# Prérequis : backend démarré + EXPO_PUBLIC_SERVER_HOST configuré + app installée.
+appId: com.doodo.app
+---
+- launchApp
+- assertVisible: "Doodo"
+- inputText: "Testeur"
+- tapOn: "Jouer"
+- assertVisible: "Parties publiques"
+- tapOn: "Table privée"
+- assertVisible: "Partage ce code"
+- tapOn: "+ Bot"
+- tapOn: "+ Bot"
+- tapOn: "Lancer"
+- assertVisible: "Tes dés" # ou la zone d'enchère selon l'UI finale
