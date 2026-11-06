@@ -7,7 +7,8 @@ import { BidSelector } from '@/components/BidSelector';
 import { Chat } from '@/components/Chat';
 import { ChooseDice, GodPanel } from '@/components/GodPanel';
 import { DiceRow } from '@/components/Dice';
-import { GameBadges, PlayerRow, TurnTimer } from '@/components/GameWidgets';
+import { TableScene } from '@/scenes/TableScene';
+import { GameBadges, TurnTimer } from '@/components/GameWidgets';
 import { useSession } from '@/store/session';
 import { playEvent } from '@/audio/manager';
 import type { GodAction } from '@doodo/shared';
@@ -85,9 +86,13 @@ export default function Room() {
 
       {inGame && (
         <View style={styles.game}>
+          <View style={StyleSheet.absoluteFill}>
+            <TableScene
+              players={s.players} diceCounts={s.diceCounts} mySeat={s.mySeat}
+              yourDice={s.yourDice} godDice={s.godDice}
+              turnSeat={s.turnSeat} round={s.round} />
+          </View>
           <GameBadges godMode={s.options.godMode} palifico={false} />
-          <PlayerRow players={s.players} diceCounts={s.diceCounts}
-            turnSeat={s.turnSeat} godDice={s.godDice} />
           <View style={styles.bidZone}>
             {s.currentBid ? (
               <Text style={styles.bid}>
