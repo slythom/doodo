@@ -1,0 +1,92 @@
+name: android-apk
+
+on:
+  # APK debug à la demande + sur chaque push main
+  push:
+    branches: [main]
+  workflow_dispatch:
+  # APK release sur tag v* → attaché à une GitHub Release
+  release:
+    types: [published]
+
+jobs:
+  apk-debug:
+    if: github.event_name != 'release'
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: apps/mobile
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - run: pnpm install --frozen-lockfile
+        working-directory: .
+      - name: Prebuild (génère android/)
+        run: pnpm exec expo prebuild --platform android --no-install
+      - name: Build APK debug
+        run: ./android/gradlew -p android assembleDebug
+      - uses: actions/upload-artifact@v4
+        with:
+          name: doodo-debug-apk
+          path: apps/mobile/android/app/build/outputs/apk/debug/app-debug.apk
+
+  apk-release:
+    if: github.event_name == 'release'
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: apps/mobile
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - run: pnpm install --frozen-lockfile
+        working-directory: .
+      - name: Restaurer le keystore de release
+        env:
+          KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+        run: |
+          if [ -z "$KEYSTORE_BASE64" ]; then
+            echo "::error::Secret ANDROID_KEYSTORE_BASE64 manquant (voir README § APK)"
+            exit 1
+          fi
+          echo "$KEYSTORE_BASE64" | base64 -d > release.keystore
+      - name: Prebuild (génère android/)
+        run: pnpm exec expo prebuild --platform android --no-install
+      - name: Configurer la signature release
+        env:
+          KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: |
+          cat >> android/gradle.properties <<EOF
+          MYAPP_UPLOAD_STORE_FILE=release.keystore
+          MYAPP_UPLOAD_KEY_ALIAS=$KEY_ALIAS
+          MYAPP_UPLOAD_STORE_PASSWORD=$KEYSTORE_PASSWORD
+          MYAPP_UPLOAD_KEY_PASSWORD=$KEY_PASSWORD
+          EOF
+          mv release.keystore android/app/release.keystore
+      - name: Build APK release signé
+        run: ./android/gradlew -p android assembleRelease
+      - name: Attacher l'APK à la GitHub Release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release upload "$GITHUB_REF_NAME" \
+            android/app/build/outputs/apk/release/app-release.apk#doodo.apk \
+            --clobber

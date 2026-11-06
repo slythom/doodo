@@ -1,0 +1,40 @@
+services:
+  app:
+    build: ./server
+    ports:
+      - "8080:8080"
+    environment:
+      DATABASE_URL: postgres://doodo:doodo@db:5432/doodo?sslmode=disable
+      JWT_SECRET: ${JWT_SECRET:-dev-secret-change-me}
+    depends_on:
+      db:
+        condition: service_healthy
+    restart: unless-stopped
+
+  db:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_USER: doodo
+      POSTGRES_PASSWORD: doodo
+      POSTGRES_DB: doodo
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U doodo"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  # Décommenter en prod : reverse proxy TLS auto
+  # caddy:
+  #   image: caddy:2-alpine
+  #   ports: ["80:80", "443:443"]
+  #   volumes:
+  #     - ./Caddyfile:/etc/caddy/Caddyfile
+  #     - caddy_data:/data
+  #   depends_on: [app]
+  #   restart: unless-stopped
+
+volumes:
+  pgdata:
+  # caddy_data:

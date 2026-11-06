@@ -1,0 +1,23 @@
+{
+  "app.title": "Doodo",
+  "home.play": "Jouer",
+  "home.quickGame": "Partie rapide",
+  "home.createTable": "Créer une table",
+  "home.lobby": "Lobby",
+  "home.login": "Se connecter",
+  "lobby.title": "Parties publiques",
+  "room.waiting": "En attente des joueurs…",
+  "room.ready": "Prêt",
+  "room.start": "Lancer la partie",
+  "game.yourTurn": "À toi de jouer",
+  "game.bid": "Enchérir",
+  "game.dudo": "Dudo !",
+  "game.calza": "Calza !",
+  "game.yourDice": "Tes dés",
+  "chat.placeholder": "Message…",
+  "results.winner": "Victoire de {name}",
+  "results.rematch": "Revanche",
+  "results.backToLobby": "Retour au lobby",
+  "settings.sounds": "Sons",
+  "settings.mute": "Couper le son"
+}
