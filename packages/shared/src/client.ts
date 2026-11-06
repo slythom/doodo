@@ -21,6 +21,7 @@ export class DoodoClient {
   private attempts = 0;
   private lastSeq = 0;
   private closed = false;
+  private queue: ClientMessage[] = [];
 
   constructor(
     private url: string,
@@ -41,8 +42,11 @@ export class DoodoClient {
   send(msg: ClientMessage): void {
     if (this.ws?.readyState === WebSocket.OPEN) {
       this.ws.send(JSON.stringify(msg));
+    } else {
+      // File d'attente : les messages partis avant l'ouverture (join_game,
+      // quick_join…) seraient sinon jetés silencieusement.
+      this.queue.push(msg);
     }
-    // Phase 2 : file d'attente des actions pendant la déconnexion.
   }
 
   close(): void {
@@ -61,6 +65,10 @@ export class DoodoClient {
     ws.onopen = () => {
       this.attempts = 0;
       this.opts.onStatusChange?.('open');
+      // Flush de la file à l'ouverture.
+      for (const m of this.queue.splice(0)) {
+        ws.send(JSON.stringify(m));
+      }
     };
 
     ws.onmessage = (ev) => {
