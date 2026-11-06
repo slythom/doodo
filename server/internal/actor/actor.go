@@ -23,7 +23,7 @@ const (
 	phaseEnded     = "ended"
 
 	gracePeriod    = 90 * time.Second
-	revealPause    = 4 * time.Second
+	revealPause    = 6 * time.Second
 	godRollTimeout = 10 * time.Second
 )
 

@@ -99,7 +99,14 @@ export default function Room() {
             )}
             <TurnTimer deadline={s.turnDeadline ?? 0} />
             {s.revealedDice && (
-              <Text style={styles.reveal}>Révélés : {JSON.stringify(s.revealedDice)}</Text>
+              <View style={styles.revealBox}>
+                {s.players.filter(p => s.revealedDice![p.seat]).map(p => (
+                  <View key={p.seat} style={styles.revealRow}>
+                    <Text style={styles.revealName}>{p.name}</Text>
+                    <DiceRow dice={s.revealedDice![p.seat]} size={24} />
+                  </View>
+                ))}
+              </View>
             )}
           </View>
           <Text style={styles.turn}>
@@ -172,7 +179,9 @@ const styles = StyleSheet.create({
   bidZone: { alignItems: 'center', gap: 6 },
   bid: { color: '#f5e6c8', fontSize: 22, fontWeight: '800' },
   bidWho: { color: '#a89880', fontSize: 15, fontWeight: '400' },
-  reveal: { color: '#a89880', fontSize: 12 },
+  revealBox: { gap: 4, alignItems: 'center' },
+  revealRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  revealName: { color: '#c8955c', fontSize: 12, width: 70, textAlign: 'right' },
   turn: { color: '#e8b74a', fontSize: 17, fontWeight: '700' },
   standing: { color: '#f5e6c8', fontSize: 20, fontWeight: '600' },
   error: { position: 'absolute', bottom: 12, alignSelf: 'center', color: '#e05038', fontSize: 13 },
