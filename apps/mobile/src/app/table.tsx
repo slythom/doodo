@@ -1,3 +1,4 @@
+import '@/polyfills';
 import { StyleSheet, Text, View } from 'react-native';
 import { TableScene } from '@/scenes/TableScene';
 

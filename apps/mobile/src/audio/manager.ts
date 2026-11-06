@@ -1,4 +1,3 @@
-import { Audio } from 'expo-av';
 import { useSession } from '@/store/session';
 
 /** Mapping événement de jeu → asset audio (spec §4.3). */
@@ -13,10 +12,20 @@ const SOUNDS: Record<string, any> = {
   turn: require('../../assets/sounds/turn.wav'),
 };
 
-const cache = new Map<string, Audio.Sound>();
+// expo-av est un module natif absent d'Expo Go → require paresseux,
+// l'app reste jouable sans son. Le dev build l'activera.
+let Audio: typeof import('expo-av').Audio | null = null;
+try {
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
+  Audio = require('expo-av').Audio;
+} catch {
+  Audio = null;
+}
+
+const cache = new Map<string, import('expo-av').Audio.Sound>();
 
 export async function playEvent(type: string): Promise<void> {
-  if (useSession.getState().muted) return;
+  if (!Audio || useSession.getState().muted) return;
   const asset = SOUNDS[type];
   if (!asset) return;
   try {
