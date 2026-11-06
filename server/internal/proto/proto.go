@@ -64,6 +64,7 @@ type JoinGamePayload struct {
 	ClientID string `json:"clientId"`
 	Spectate bool   `json:"spectate,omitempty"`
 	AdminKey string `json:"adminKey,omitempty"`
+	Token    string `json:"token,omitempty"` // access JWT → userID + is_admin
 }
 
 type ReadyPayload struct {
@@ -82,6 +83,7 @@ type ChatPayload struct {
 type QuickJoinPayload struct {
 	Name     string `json:"name"`
 	ClientID string `json:"clientId"`
+	Token    string `json:"token,omitempty"`
 }
 
 // ─── Serveur → Client ────────────────────────────────────────────────

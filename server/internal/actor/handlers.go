@@ -71,10 +71,12 @@ func (a *Actor) addPlayer(req JoinRequest, spectator bool) *player {
 	seat := a.freeSeat(spectator)
 	p := &player{
 		seat: seat, name: req.Name, clientID: req.ClientID,
-		admin: req.Admin && !spectator, spectator: spectator,
+		userID: req.UserID,
+		admin:  req.Admin && !spectator, spectator: spectator,
 		connected: true, send: req.Send,
 		dice: a.opts.DiceCount, palificoOK: true,
 	}
+	p.isGuest = req.IsGuest
 	a.players[seat] = p
 	return p
 }

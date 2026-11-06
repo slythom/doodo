@@ -105,7 +105,7 @@ func mustPayload(t *testing.T, v any) []byte {
 func TestWSFullFlow(t *testing.T) {
 	gameHub := hub.New("admin123")
 	queue := matchmaking.New(gameHub.Create)
-	srv := httptest.NewServer(NewServer(gameHub, queue))
+	srv := httptest.NewServer(NewServer(gameHub, queue, nil))
 	defer srv.Close()
 	wsURL := "ws" + srv.URL[4:] + "/ws"
 

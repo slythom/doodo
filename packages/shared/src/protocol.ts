@@ -52,9 +52,14 @@ export type ClientMessage =
         clientId: string;
         spectate?: boolean;
         adminKey?: string;
+        /** Access JWT (invité ou compte) — résout userID/admin côté serveur. */
+        token?: string;
       };
     }
-  | { type: 'quick_join'; payload: { name: string; clientId: string } }
+  | {
+      type: 'quick_join';
+      payload: { name: string; clientId: string; token?: string };
+    }
   | { type: 'quick_leave' }
   | { type: 'start_game' }
   | { type: 'leave_game' }

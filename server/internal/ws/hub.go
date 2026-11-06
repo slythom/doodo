@@ -6,35 +6,44 @@ import (
 	"context"
 	"log/slog"
 	"net/http"
+	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/coder/websocket"
 	"github.com/coder/websocket/wsjson"
 
 	"doodo/server/internal/actor"
+	"doodo/server/internal/auth"
 	"doodo/server/internal/hub"
 	"doodo/server/internal/matchmaking"
 	"doodo/server/internal/proto"
 )
 
+const maxMsgsPerSecond = 30
+
 const sendBuffer = 64
 
 // Server expose le handler /ws.
 type Server struct {
-	hub *hub.Hub
-	mm  *matchmaking.Queue
+	hub  *hub.Hub
+	mm   *matchmaking.Queue
+	auth *auth.Service // nil = pas d'auth (dev sans BDD)
 }
 
-func NewServer(h *hub.Hub, mm *matchmaking.Queue) *Server {
-	return &Server{hub: h, mm: mm}
+func NewServer(h *hub.Hub, mm *matchmaking.Queue, authSvc *auth.Service) *Server {
+	return &Server{hub: h, mm: mm, auth: authSvc}
 }
 
 // client : une connexion WS active.
 type client struct {
 	conn      *websocket.Conn
 	send      chan proto.ServerMessage
+	done      chan struct{} // fermé à la déconnexion — remplace close(send)
+	doneOnce  sync.Once
 	hub       *hub.Hub
 	mm        *matchmaking.Queue
+	auth      *auth.Service
 	clientID  string
 	game      *actor.Actor
 	seat      int
@@ -42,9 +51,12 @@ type client struct {
 }
 
 // sendFunc retourne le Sender thread-safe du client (drop si buffer plein).
+// Jamais d'envoi sur un channel fermé : done est vérifié avant send.
 func (c *client) sendFunc() actor.Sender {
 	return func(msg proto.ServerMessage) {
 		select {
+		case <-c.done:
+			return
 		case c.send <- msg:
 		default:
 			// Client trop lent : on ferme plutôt que de bloquer l'acteur.
@@ -65,15 +77,18 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	c := &client{
 		conn: conn,
 		send: make(chan proto.ServerMessage, sendBuffer),
+		done: make(chan struct{}),
 		hub:  s.hub,
 		mm:   s.mm,
+		auth: s.auth,
 		seat: -1,
 	}
 	go c.writePump()
 	c.readPump(r.Context())
 }
 
-// readPump lit les messages JSON jusqu'à la fermeture.
+// readPump lit les messages JSON jusqu'à la fermeture, avec limite de débit
+// par connexion (anti-spam global — spec tech §8).
 func (c *client) readPump(ctx context.Context) {
 	defer func() {
 		if c.game != nil && c.clientID != "" {
@@ -83,13 +98,23 @@ func (c *client) readPump(ctx context.Context) {
 			c.mm.Leave(c.clientID)
 		}
 		_ = c.conn.Close(websocket.StatusNormalClosure, "bye")
-		close(c.send)
+		c.doneOnce.Do(func() { close(c.done) })
 	}()
+	var count atomic.Int64
+	window := time.Now()
 	for {
 		var msg proto.ClientMessage
 		err := wsjson.Read(ctx, c.conn, &msg)
 		if err != nil {
 			return // déconnexion
+		}
+		if time.Since(window) > time.Second {
+			window = time.Now()
+			count.Store(0)
+		}
+		if count.Add(1) > maxMsgsPerSecond {
+			_ = c.conn.Close(websocket.StatusPolicyViolation, "rate limit")
+			return
 		}
 		c.route(msg)
 	}
@@ -101,6 +126,8 @@ func (c *client) writePump() {
 	defer ping.Stop()
 	for {
 		select {
+		case <-c.done:
+			return
 		case msg, ok := <-c.send:
 			if !ok {
 				return
@@ -136,9 +163,18 @@ func (c *client) route(msg proto.ClientMessage) {
 			return
 		}
 		c.clientID = pl.ClientID
-		c.mm.Join(&matchmaking.Waiting{
+		w := &matchmaking.Waiting{
 			Name: pl.Name, ClientID: pl.ClientID, Send: c.sendFunc(),
-		})
+		}
+		if claims := c.verifyToken(pl.Token); claims != nil {
+			w.UserID = claims.UserID
+			w.IsGuest = claims.IsGuest
+			w.Admin = claims.IsAdmin
+			if w.Name == "" {
+				w.Name = claims.Username
+			}
+		}
+		c.mm.Join(w)
 	case "quick_leave":
 		c.mm.Leave(c.clientID)
 	case "ping":
@@ -157,10 +193,21 @@ func (c *client) handleJoin(pl proto.JoinGamePayload) {
 		return
 	}
 	c.clientID = pl.ClientID
+	userID, admin, guest := "", c.hub.AdminKey(pl.AdminKey), false
+	if claims := c.verifyToken(pl.Token); claims != nil {
+		userID = claims.UserID
+		admin = admin || claims.IsAdmin
+		guest = claims.IsGuest
+		if pl.Name == "" {
+			pl.Name = claims.Username
+		}
+	}
 	res := a.Join(actor.JoinRequest{
 		Name:      pl.Name,
 		ClientID:  pl.ClientID,
-		Admin:     c.hub.AdminKey(pl.AdminKey),
+		UserID:    userID,
+		Admin:     admin,
+		IsGuest:   guest,
 		Spectator: pl.Spectate,
 		Send:      c.sendFunc(),
 	})
@@ -169,6 +216,18 @@ func (c *client) handleJoin(pl proto.JoinGamePayload) {
 		return
 	}
 	c.game, c.seat, c.spectator = a, res.Seat, res.Spectator
+}
+
+// verifyToken résout un access JWT en claims (nil si absent/invalide).
+func (c *client) verifyToken(token string) *auth.Claims {
+	if token == "" || c.auth == nil {
+		return nil
+	}
+	claims, err := c.auth.Verify(token)
+	if err != nil {
+		return nil
+	}
+	return claims
 }
 
 func (c *client) deliver(msg proto.ServerMessage) {

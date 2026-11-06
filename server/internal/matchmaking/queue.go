@@ -20,6 +20,9 @@ const (
 type Waiting struct {
 	Name     string
 	ClientID string
+	UserID   string // si authentifié
+	IsGuest  bool
+	Admin    bool
 	Send     actor.Sender
 	JoinedAt time.Time
 }
@@ -121,7 +124,8 @@ func (q *Queue) tick() {
 	for _, w := range batch {
 		w.Send(proto.NewMsg("matchmaking", 0, proto.MatchmakingPayload{State: "matched"}))
 		a.Join(actor.JoinRequest{
-			Name: w.Name, ClientID: w.ClientID, Send: w.Send,
+			Name: w.Name, ClientID: w.ClientID, UserID: w.UserID,
+			IsGuest: w.IsGuest, Admin: w.Admin, Send: w.Send,
 		})
 	}
 	if formBots {

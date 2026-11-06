@@ -20,6 +20,7 @@ type Hub struct {
 	games    map[string]*actor.Actor
 	rng      *mrand.Rand
 	adminKey string
+	persist  actor.Persister
 }
 
 func New(adminKey string) *Hub {
@@ -29,6 +30,9 @@ func New(adminKey string) *Hub {
 		adminKey: adminKey,
 	}
 }
+
+// SetPersister branche la persistance sur les parties créées.
+func (h *Hub) SetPersister(p actor.Persister) { h.persist = p }
 
 // AdminKey vérifie la clé admin (god powers — flag users.is_admin en phase 3).
 func (h *Hub) AdminKey(key string) bool {
@@ -44,6 +48,7 @@ func (h *Hub) Create(opts proto.TableOptions, public bool) (*actor.Actor, string
 	if err != nil {
 		return nil, "", err
 	}
+	a.SetPersister(h.persist)
 	h.games[code] = a
 	go a.Run()
 	return a, code, nil

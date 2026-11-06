@@ -36,6 +36,7 @@ func (a *Actor) startGame() {
 	a.elimOrder = nil
 	a.palificoNext = false
 	a.lastLoser = -1
+	a.persistStart()
 	a.broadcast("game_started", proto.GameStartedPayload{Options: a.opts})
 	a.startRound()
 }
@@ -307,6 +308,55 @@ func (a *Actor) finishGame() {
 		}
 	}
 	a.broadcast("game_ended", proto.GameEndedPayload{Standings: standings})
+	a.persistFinish(standings)
+}
+
+// ─── Persistance ─────────────────────────────────────────────────────
+
+// persistStart enregistre la partie au lancement (si Persister branché).
+func (a *Actor) persistStart() {
+	if a.persist == nil {
+		return
+	}
+	var players []PlayerRecord
+	for _, p := range a.players {
+		if !p.spectator {
+			players = append(players, PlayerRecord{
+				UserID: p.userID, IsGuest: p.isGuest, IsBot: p.bot,
+				Seat: p.seat, Name: p.name,
+			})
+		}
+	}
+	id, err := a.persist.GameStarted(a.code, a.opts, a.RankedSafe(), players)
+	if err != nil {
+		a.log = append(a.log, loggedEvent{at: time.Now(), typ: "persist_error", data: err.Error()})
+		return
+	}
+	a.gameDBID = id
+}
+
+// persistFinish enregistre les résultats finaux.
+func (a *Actor) persistFinish(standings []proto.Standing) {
+	if a.persist == nil || a.gameDBID == "" {
+		return
+	}
+	rank := map[int]int{}
+	for _, st := range standings {
+		rank[st.Seat] = st.FinalRank
+	}
+	var players []PlayerRecord
+	for _, p := range a.players {
+		if !p.spectator {
+			players = append(players, PlayerRecord{
+				UserID: p.userID, IsGuest: p.isGuest, IsBot: p.bot,
+				Seat: p.seat, Name: p.name, FinalRank: rank[p.seat],
+			})
+		}
+	}
+	if err := a.persist.GameFinished(a.gameDBID, players); err != nil {
+		a.log = append(a.log, loggedEvent{at: time.Now(), typ: "persist_error", data: err.Error()})
+	}
+	a.gameDBID = ""
 }
 
 // ─── Timers ──────────────────────────────────────────────────────────

@@ -32,6 +32,7 @@ type player struct {
 	seat       int
 	name       string
 	clientID   string // identité de reconnexion
+	userID     string // compte/invité persisté ("" si anonyme)
 	admin      bool
 	bot        bool
 	spectator  bool
@@ -41,6 +42,7 @@ type player struct {
 	dice       int             // dés restants en jeu
 	presetDice []game.DieValue // tirage fixé par god set_dice
 	palificoOK bool            // palifico pas encore utilisé
+	isGuest    bool
 	chatWindow time.Time
 	chatCount  int
 }
@@ -49,7 +51,9 @@ type player struct {
 type JoinRequest struct {
 	Name      string
 	ClientID  string
+	UserID    string // id users si authentifié (guest ou compte)
 	Admin     bool
+	IsGuest   bool
 	Spectator bool
 	Send      Sender
 	ack       chan JoinResult
@@ -72,11 +76,13 @@ type loggedEvent struct {
 
 // Actor gère une partie : salle d'attente, manches, timers, reconnexions.
 type Actor struct {
-	code   string
-	opts   proto.TableOptions
-	rules  *game.Rules
-	public bool
-	rng    *rand.Rand
+	code     string
+	opts     proto.TableOptions
+	rules    *game.Rules
+	public   bool
+	rng      *rand.Rand
+	persist  Persister // nil = pas de persistance (tests, dev sans BDD)
+	gameDBID string    // id de la ligne games en cours
 
 	inbox    chan any
 	done     chan struct{}
@@ -160,6 +166,27 @@ func (a *Actor) Options() proto.TableOptions { return a.opts }
 
 // IsPublic indique si la salle apparaît dans le lobby public.
 func (a *Actor) IsPublic() bool { return a.public }
+
+// Persister : persistance des résultats (implémenté par internal/store).
+type Persister interface {
+	// GameStarted enregistre la partie au lancement → id BDD.
+	GameStarted(code string, options proto.TableOptions, ranked bool, players []PlayerRecord) (string, error)
+	// GameFinished enregistre les résultats finaux.
+	GameFinished(gameID string, players []PlayerRecord) error
+}
+
+// PlayerRecord : un joueur à persister.
+type PlayerRecord struct {
+	UserID    string // "" si anonyme
+	IsGuest   bool
+	IsBot     bool
+	Seat      int
+	Name      string
+	FinalRank int
+}
+
+// SetPersister branche la persistance sur l'acteur.
+func (a *Actor) SetPersister(p Persister) { a.persist = p }
 
 // EnsureBots ajoute des bots jusqu'à atteindre min joueurs (matchmaking).
 func (a *Actor) EnsureBots(min int) {
