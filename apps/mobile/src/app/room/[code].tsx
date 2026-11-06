@@ -7,7 +7,7 @@ import { BidSelector } from '@/components/BidSelector';
 import { Chat } from '@/components/Chat';
 import { ChooseDice, GodPanel } from '@/components/GodPanel';
 import { DiceRow } from '@/components/Dice';
-import { TableScene } from '@/scenes/TableScene';
+import { TableScene, cupScreenX } from '@/scenes/TableScene';
 import { GameBadges, TurnTimer } from '@/components/GameWidgets';
 import { useSession } from '@/store/session';
 import { playEvent } from '@/audio/manager';
@@ -91,6 +91,20 @@ export default function Room() {
               players={s.players} diceCounts={s.diceCounts} mySeat={s.mySeat}
               yourDice={s.yourDice} godDice={s.godDice}
               turnSeat={s.turnSeat} round={s.round} />
+          </View>
+          {/* Compte de dés au-dessus de chaque gobelet (overlay 2D, caméra fixe) */}
+          <View pointerEvents="none" style={StyleSheet.absoluteFill}>
+            {s.players.filter(p => p.seat !== s.mySeat && p.seat < 100).map((p, i, arr) => (
+              <View key={p.seat} style={[styles.cupLabel,
+                { left: `${cupScreenX(i, arr.length) * 100}%` as never }]}>
+                <Text style={[styles.cupCount, s.turnSeat === p.seat && styles.cupCountTurn]}>
+                  {s.diceCounts[p.seat] ?? 0}
+                </Text>
+                <Text style={styles.cupName} numberOfLines={1}>
+                  {p.isBot ? '🤖' : ''}{p.name}{!p.connected ? ' 📴' : ''}
+                </Text>
+              </View>
+            ))}
           </View>
           <GameBadges godMode={s.options.godMode} palifico={false} />
           <View style={styles.bidZone}>
@@ -181,12 +195,16 @@ const styles = StyleSheet.create({
   start: { backgroundColor: '#3d6b4f' },
   btnText: { color: '#1a1410', fontWeight: '700', fontSize: 15 },
   game: { flex: 1, alignItems: 'center', justifyContent: 'space-evenly', padding: 12 },
-  bidZone: { alignItems: 'center', gap: 6 },
+  bidZone: { alignItems: 'center', gap: 6, marginTop: 70 },
   bid: { color: '#f5e6c8', fontSize: 22, fontWeight: '800' },
   bidWho: { color: '#a89880', fontSize: 15, fontWeight: '400' },
   revealBox: { gap: 4, alignItems: 'center' },
   revealRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   revealName: { color: '#c8955c', fontSize: 12, width: 70, textAlign: 'right' },
+  cupLabel: { position: 'absolute', top: '24%', transform: [{ translateX: -30 }], alignItems: 'center', width: 60 },
+  cupCount: { color: '#f5e6c8', fontSize: 20, fontWeight: '800', textShadowColor: '#000', textShadowRadius: 4 },
+  cupCountTurn: { color: '#e8b74a' },
+  cupName: { color: '#a89880', fontSize: 11, textShadowColor: '#000', textShadowRadius: 3 },
   turn: { color: '#e8b74a', fontSize: 17, fontWeight: '700' },
   standing: { color: '#f5e6c8', fontSize: 20, fontWeight: '600' },
   error: { position: 'absolute', bottom: 12, alignSelf: 'center', color: '#e05038', fontSize: 13 },
