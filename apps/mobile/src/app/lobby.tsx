@@ -1,4 +1,4 @@
-import { router } from 'expo-router';
+import { Link, router } from 'expo-router';
 import { useCallback, useEffect, useState } from 'react';
 import { FlatList, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import { api, type RoomInfo } from '@/api/http';
@@ -47,6 +47,7 @@ export default function Lobby() {
 
   return (
     <View style={styles.container}>
+      <Link href="/settings" style={styles.gear}>⚙</Link>
       <Text style={styles.title}>{t('lobby.title')}</Text>
       <Text style={styles.who}>{username}</Text>
 
@@ -96,6 +97,7 @@ export default function Lobby() {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#1a1410', padding: 20, paddingTop: 60 },
+  gear: { position: 'absolute', top: 50, right: 16, fontSize: 24, color: '#a89880' },
   title: { color: '#f5e6c8', fontSize: 28, fontWeight: '800', textAlign: 'center' },
   who: { color: '#a89880', textAlign: 'center', marginBottom: 16 },
   row: { flexDirection: 'row', gap: 10, justifyContent: 'center', marginBottom: 10 },
