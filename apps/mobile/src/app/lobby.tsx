@@ -4,13 +4,14 @@ import { FlatList, Pressable, StyleSheet, Text, TextInput, View } from 'react-na
 import { api, type RoomInfo } from '@/api/http';
 import { useSession } from '@/store/session';
 import { connectToRoom } from '@/game/connection';
-import { t } from '@doodo/shared';
+import { DEFAULT_OPTIONS, t } from '@doodo/shared';
 
 export default function Lobby() {
   const { username } = useSession();
   const [rooms, setRooms] = useState<RoomInfo[]>([]);
   const [code, setCode] = useState('');
   const [busy, setBusy] = useState(false);
+  const [godMode, setGodMode] = useState(false);
   const [error, setError] = useState('');
 
   const refresh = useCallback(async () => {
@@ -35,7 +36,7 @@ export default function Lobby() {
   const create = async (isPublic: boolean) => {
     setBusy(true);
     try {
-      const res = await api.createGame({} as never, isPublic);
+      const res = await api.createGame({ ...DEFAULT_OPTIONS, godMode }, isPublic);
       join(res.code);
     } catch (e) {
       setError(String(e));
@@ -51,6 +52,9 @@ export default function Lobby() {
       <Text style={styles.title}>{t('lobby.title')}</Text>
       <Text style={styles.who}>{username}</Text>
 
+      <Pressable style={styles.godToggle} onPress={() => setGodMode(!godMode)}>
+        <Text style={styles.godToggleText}>{godMode ? '⚡ Mode dieu : ON' : 'Mode dieu : off'}</Text>
+      </Pressable>
       <View style={styles.row}>
         <Pressable style={styles.btn} onPress={() => void create(false)} disabled={busy}>
           <Text style={styles.btnText}>Table privée</Text>
@@ -104,6 +108,9 @@ const styles = StyleSheet.create({
   btn: { backgroundColor: '#c8955c', paddingHorizontal: 18, paddingVertical: 12, borderRadius: 10 },
   btnText: { color: '#1a1410', fontWeight: '700', fontSize: 15 },
   quick: { alignSelf: 'center', backgroundColor: '#3d6b4f', marginBottom: 16 },
+  godToggle: { alignSelf: 'center', marginBottom: 10, paddingHorizontal: 14, paddingVertical: 8,
+    borderRadius: 10, backgroundColor: '#2a2018' },
+  godToggleText: { color: '#e8b74a', fontWeight: '700' },
   codeRow: { flexDirection: 'row', gap: 8, justifyContent: 'center', marginBottom: 16 },
   codeInput: { backgroundColor: '#2a2018', color: '#f5e6c8', borderRadius: 10, paddingHorizontal: 16, paddingVertical: 10, fontSize: 20, letterSpacing: 4, width: 140, textAlign: 'center' },
   list: { flex: 1 },

@@ -159,13 +159,7 @@ function OpponentCup({ index, total, count, isTurn, godDice, seat, onTap }: {
           <meshStandardMaterial color={isTurn ? '#e8b74a' : CUP_COLORS[seat % CUP_COLORS.length]} flatShading />
         </mesh>
       </group>
-      {/* En god mode : les vraies faces sont révélées devant le gobelet */}
-      {godDice?.map((d, i) => (
-        <mesh key={i} position={[-0.5 + i * 0.22, 0.12, 0.35]}>
-          <boxGeometry args={[0.17, 0.17, 0.17]} />
-          <meshStandardMaterial color={d === 1 ? '#e8b74a' : '#f5f0e6'} flatShading />
-        </mesh>
-      ))}
+
     </group>
   );
 }

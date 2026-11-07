@@ -98,12 +98,17 @@ export default function Room() {
           <View pointerEvents="box-none" style={StyleSheet.absoluteFill}>
             {s.players.filter(p => p.seat !== s.mySeat && p.seat < 100).map((p, i, arr) => (
               <Pressable key={p.seat} style={[styles.cupLabel,
-                { left: `${cupScreenX(i, arr.length) * 100}%` as never,
+                { left: `${Math.min(Math.max(cupScreenX(i, arr.length), 0.14), 0.86) * 100}%` as never,
                   top: `${cupScreenY(i, arr.length) * 100}%` as never }]}
                 onPress={() => send({ type: 'throw_item', payload: { item: 'tomato', seat: p.seat } })}>
                 <View style={[styles.cupTag, s.turnSeat === p.seat && styles.cupTagTurn]}>
                   <Text style={styles.cupCount}>{s.diceCounts[p.seat] ?? 0}</Text>
                 </View>
+                {s.godDice?.[p.seat] && (
+                  <View style={styles.godDiceBox}>
+                    <DiceRow dice={s.godDice[p.seat]} size={12} />
+                  </View>
+                )}
               </Pressable>
             ))}
           </View>
@@ -213,11 +218,12 @@ const styles = StyleSheet.create({
   revealTitle: { color: '#e8b74a', fontWeight: '800', fontSize: 19, marginBottom: 6 },
   revealRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   revealName: { color: '#c8955c', fontSize: 15, width: 90, textAlign: 'right' },
-  cupLabel: { position: 'absolute', transform: [{ translateX: -16 }], alignItems: 'center' },
+  cupLabel: { position: 'absolute', transform: [{ translateX: '-50%' }], alignItems: 'center' },
   cupTag: { backgroundColor: 'rgba(26,20,16,0.85)', borderColor: '#c8955c', borderWidth: 1.5,
     borderRadius: 9, width: 32, height: 26, alignItems: 'center', justifyContent: 'center' },
   cupTagTurn: { borderColor: '#e8b74a', backgroundColor: 'rgba(232,183,74,0.9)' },
   cupCount: { color: '#f5e6c8', fontSize: 14, fontWeight: '800' },
+  godDiceBox: { marginTop: 3, backgroundColor: 'rgba(20,14,8,0.85)', borderRadius: 6, padding: 3 },
   myDice: { alignItems: 'center', gap: 6 },
   turn: { position: 'absolute', top: '9%', alignSelf: 'center', color: '#e8b74a', fontSize: 24, fontWeight: '800', textShadowColor: '#000', textShadowRadius: 6 },
   standing: { color: '#f5e6c8', fontSize: 20, fontWeight: '600' },
