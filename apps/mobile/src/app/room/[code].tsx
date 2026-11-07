@@ -7,7 +7,7 @@ import { BidSelector } from '@/components/BidSelector';
 import { Chat } from '@/components/Chat';
 import { ChooseDice, GodPanel } from '@/components/GodPanel';
 import { DiceRow } from '@/components/Dice';
-import { TableScene, cupScreenX } from '@/scenes/TableScene';
+import { TableScene, cupScreenX, cupScreenY } from '@/scenes/TableScene';
 import { GameBadges, TurnTimer } from '@/components/GameWidgets';
 import { useSession } from '@/store/session';
 import { playEvent } from '@/audio/manager';
@@ -96,17 +96,34 @@ export default function Room() {
           <View pointerEvents="none" style={StyleSheet.absoluteFill}>
             {s.players.filter(p => p.seat !== s.mySeat && p.seat < 100).map((p, i, arr) => (
               <View key={p.seat} style={[styles.cupLabel,
-                { left: `${cupScreenX(i, arr.length) * 100}%` as never }]}>
-                <Text style={[styles.cupCount, s.turnSeat === p.seat && styles.cupCountTurn]}>
-                  {s.diceCounts[p.seat] ?? 0}
-                </Text>
-                <Text style={styles.cupName} numberOfLines={1}>
-                  {p.isBot ? '🤖' : ''}{p.name}{!p.connected ? ' 📴' : ''}
-                </Text>
+                { left: `${cupScreenX(i, arr.length) * 100}%` as never,
+                  top: `${cupScreenY(i, arr.length) * 100}%` as never }]}>
+                <View style={[styles.cupTag, s.turnSeat === p.seat && styles.cupTagTurn]}>
+                  <Text style={styles.cupCount}>{s.diceCounts[p.seat] ?? 0}</Text>
+                </View>
               </View>
             ))}
           </View>
+          {s.revealedDice && (
+            <View pointerEvents="none" style={styles.revealOverlay}>
+              <Text style={styles.revealTitle}>Révélation</Text>
+              {s.players.filter(p => s.revealedDice![p.seat]).map(p => (
+                <View key={p.seat} style={styles.revealRow}>
+                  <Text style={styles.revealName}>{p.name}</Text>
+                  <DiceRow dice={s.revealedDice![p.seat]} size={20} />
+                </View>
+              ))}
+            </View>
+          )}
           <GameBadges godMode={s.options.godMode} palifico={false} />
+          <Text style={styles.turn}>
+            {myTurn ? 'À toi de jouer !' : `Tour de ${s.players.find(p => p.seat === s.turnSeat)?.name ?? '…'}`}
+          </Text>
+          <View style={styles.bottomGroup}>
+          <View style={styles.myDice}>
+            <DiceRow dice={s.yourDice.slice(0, Math.floor(s.yourDice.length / 2))} size={40} />
+            <DiceRow dice={s.yourDice.slice(Math.floor(s.yourDice.length / 2))} size={40} />
+          </View>
           <View style={styles.bidZone}>
             {s.currentBid ? (
               <Text style={styles.bid}>
@@ -117,21 +134,7 @@ export default function Room() {
               <Text style={styles.hint}>Pas encore d’enchère</Text>
             )}
             <TurnTimer deadline={s.turnDeadline ?? 0} />
-            {s.revealedDice && (
-              <View style={styles.revealBox}>
-                {s.players.filter(p => s.revealedDice![p.seat]).map(p => (
-                  <View key={p.seat} style={styles.revealRow}>
-                    <Text style={styles.revealName}>{p.name}</Text>
-                    <DiceRow dice={s.revealedDice![p.seat]} size={24} />
-                  </View>
-                ))}
-              </View>
-            )}
           </View>
-          <Text style={styles.turn}>
-            {myTurn ? 'À toi de jouer !' : `Tour de ${s.players.find(p => p.seat === s.turnSeat)?.name ?? '…'}`}
-          </Text>
-          <DiceRow dice={s.yourDice} size={44} />
           {myTurn && !spectating ? (
             <BidSelector
               current={s.currentBid?.bid ?? null}
@@ -142,6 +145,7 @@ export default function Room() {
               onCalza={() => send({ type: 'calza' })}
             />
           ) : null}
+          </View>
         </View>
       )}
 
@@ -194,18 +198,23 @@ const styles = StyleSheet.create({
   btn: { backgroundColor: '#c8955c', paddingHorizontal: 18, paddingVertical: 12, borderRadius: 10 },
   start: { backgroundColor: '#3d6b4f' },
   btnText: { color: '#1a1410', fontWeight: '700', fontSize: 15 },
-  game: { flex: 1, alignItems: 'center', justifyContent: 'space-evenly', padding: 12 },
-  bidZone: { alignItems: 'center', gap: 6, marginTop: 70 },
+  game: { flex: 1, alignItems: 'center', justifyContent: 'space-between', padding: 12 },
+  bottomGroup: { alignItems: 'center', gap: 10, marginBottom: 44 },
+  bidZone: { alignItems: 'center', gap: 4 },
   bid: { color: '#f5e6c8', fontSize: 22, fontWeight: '800' },
   bidWho: { color: '#a89880', fontSize: 15, fontWeight: '400' },
-  revealBox: { gap: 4, alignItems: 'center' },
+  revealOverlay: { position: 'absolute', top: '29%', alignSelf: 'center', gap: 4, alignItems: 'center',
+    backgroundColor: 'rgba(20,14,8,0.92)', borderRadius: 12, padding: 12, borderWidth: 1, borderColor: '#c8955c' },
+  revealTitle: { color: '#e8b74a', fontWeight: '800', fontSize: 15, marginBottom: 4 },
   revealRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   revealName: { color: '#c8955c', fontSize: 12, width: 70, textAlign: 'right' },
-  cupLabel: { position: 'absolute', top: '24%', transform: [{ translateX: -30 }], alignItems: 'center', width: 60 },
-  cupCount: { color: '#f5e6c8', fontSize: 20, fontWeight: '800', textShadowColor: '#000', textShadowRadius: 4 },
-  cupCountTurn: { color: '#e8b74a' },
-  cupName: { color: '#a89880', fontSize: 11, textShadowColor: '#000', textShadowRadius: 3 },
-  turn: { color: '#e8b74a', fontSize: 17, fontWeight: '700' },
+  cupLabel: { position: 'absolute', transform: [{ translateX: -16 }], alignItems: 'center' },
+  cupTag: { backgroundColor: 'rgba(26,20,16,0.85)', borderColor: '#c8955c', borderWidth: 1.5,
+    borderRadius: 9, width: 32, height: 26, alignItems: 'center', justifyContent: 'center' },
+  cupTagTurn: { borderColor: '#e8b74a', backgroundColor: 'rgba(232,183,74,0.9)' },
+  cupCount: { color: '#f5e6c8', fontSize: 14, fontWeight: '800' },
+  myDice: { alignItems: 'center', gap: 6 },
+  turn: { position: 'absolute', top: '9%', alignSelf: 'center', color: '#e8b74a', fontSize: 24, fontWeight: '800', textShadowColor: '#000', textShadowRadius: 6 },
   standing: { color: '#f5e6c8', fontSize: 20, fontWeight: '600' },
   error: { position: 'absolute', bottom: 12, alignSelf: 'center', color: '#e05038', fontSize: 13 },
 });
