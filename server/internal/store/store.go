@@ -54,7 +54,7 @@ func (s *Store) Migrate(ctx context.Context) error {
 		return err
 	}
 	defer db.Close()
-	return goose.UpContext(ctx, db, ".")
+	return goose.UpContext(ctx, db, "migrations")
 }
 
 func (s *Store) Close() { s.pool.Close() }
