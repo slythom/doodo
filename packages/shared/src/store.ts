@@ -40,6 +40,8 @@ export interface GameState {
   revealedDice: Record<number, DieValue[]> | null;
   standings: Standing[] | null;
   chat: ChatEntry[];
+  /** Dernier projectile lancé (cle = timestamp pour re-render). */
+  thrown: { item: string; fromSeat: number; seat: number; at: number } | null;
   lastError: { code: string; message: string } | null;
 }
 
@@ -61,6 +63,7 @@ export const initialState: GameState = {
   revealedDice: null,
   standings: null,
   chat: [],
+  thrown: null,
   lastError: null,
 };
 
@@ -144,6 +147,9 @@ export function applyServerMessage(
       set((s) => ({
         chat: [...s.chat.slice(-99), { ...msg.payload, at: Date.now() }],
       }));
+      break;
+    case 'item_thrown':
+      set(() => ({ thrown: { ...msg.payload, at: Date.now() } }));
       break;
     case 'error':
       set(() => ({ lastError: msg.payload }));

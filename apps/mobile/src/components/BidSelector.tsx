@@ -33,7 +33,7 @@ export function BidSelector({ current, onBid, onDudo, onCalza, calzaEnabled, dis
       <View style={styles.values}>
         {([1, 2, 3, 4, 5, 6] as DieValue[]).map((v) => (
           <Pressable key={v} onPress={() => setValue(v)} style={value === v && styles.selected}>
-            <Die value={v} size={36} />
+            <Die value={v} size={36} inverted />
           </Pressable>
         ))}
       </View>

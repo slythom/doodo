@@ -207,6 +207,11 @@ func (a *Actor) handleClientMsg(seat int, msg proto.ClientMessage) {
 		if msg.Decode(&pl) == nil {
 			a.handleGodAction(p, pl)
 		}
+	case "throw_item":
+		var pl proto.ThrowItemPayload
+		if msg.Decode(&pl) == nil {
+			a.handleThrowItem(p, pl)
+		}
 	case "chat":
 		var pl proto.ChatPayload
 		if msg.Decode(&pl) == nil {
@@ -294,6 +299,15 @@ func (a *Actor) handleKick(p *player, seat int) {
 		delete(a.players, seat)
 		a.emitLobby()
 	}
+}
+
+// handleThrowItem : projectile sur un adversaire connecté, présent à la table.
+func (a *Actor) handleThrowItem(p *player, pl proto.ThrowItemPayload) {
+	t, ok := a.players[pl.Seat]
+	if pl.Item != "tomato" || !ok || t.seat == p.seat || !t.connected || a.phase == phaseLobby {
+		return
+	}
+	a.broadcast("item_thrown", proto.ItemThrownPayload{Item: pl.Item, FromSeat: p.seat, Seat: pl.Seat})
 }
 
 func (a *Actor) handleChat(p *player, pl proto.ChatPayload) {

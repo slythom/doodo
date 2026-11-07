@@ -1,4 +1,4 @@
-import { DoodoClient, applyServerMessage, createGameStore } from '@doodo/shared';
+import { DoodoClient, applyServerMessage, createGameStore, initialState } from '@doodo/shared';
 import type { GameStore } from '@doodo/shared';
 import { WS_URL } from '@/config';
 import { useSession } from '@/store/session';
@@ -11,6 +11,8 @@ export const gameStore: GameStore = createGameStore();
 /** Connecte le client WS à une salle et branche les messages sur le store. */
 export function connectToRoom(code: string, spectate = false): void {
   disconnect();
+  // Nouvelle table = état propre (sinon la phase/encan de l'ancienne partie traîne).
+  gameStore.setState(initialState);
   const { clientId, username, accessToken } = useSession.getState();
   client = new DoodoClient(WS_URL, {
     onMessage: (msg) => {
@@ -44,6 +46,7 @@ export function isConnected(): boolean {
  *  rejoint ensuite dans une table — `joined` mettra à jour roomCode. */
 export function connectQueue(name: string, clientId: string, token?: string): void {
   disconnect();
+  gameStore.setState(initialState);
   client = new DoodoClient(WS_URL, {
     onMessage: (msg) =>
       applyServerMessage((fn) => gameStore.setState(fn(gameStore.getState())), msg),

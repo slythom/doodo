@@ -11,7 +11,7 @@ import { TableScene, cupScreenX, cupScreenY } from '@/scenes/TableScene';
 import { GameBadges, TurnTimer } from '@/components/GameWidgets';
 import { useSession } from '@/store/session';
 import { playEvent } from '@/audio/manager';
-import type { GodAction } from '@doodo/shared';
+import type { DieValue, GodAction } from '@doodo/shared';
 
 export default function Room() {
   const { code } = useLocalSearchParams<{ code: string }>();
@@ -90,18 +90,21 @@ export default function Room() {
             <TableScene
               players={s.players} diceCounts={s.diceCounts} mySeat={s.mySeat}
               yourDice={s.yourDice} godDice={s.godDice}
-              turnSeat={s.turnSeat} round={s.round} />
+              turnSeat={s.turnSeat} round={s.round}
+              thrown={s.thrown}
+              onThrow={(seat) => send({ type: 'throw_item', payload: { item: 'tomato', seat } })} />
           </View>
           {/* Compte de dés au-dessus de chaque gobelet (overlay 2D, caméra fixe) */}
-          <View pointerEvents="none" style={StyleSheet.absoluteFill}>
+          <View pointerEvents="box-none" style={StyleSheet.absoluteFill}>
             {s.players.filter(p => p.seat !== s.mySeat && p.seat < 100).map((p, i, arr) => (
-              <View key={p.seat} style={[styles.cupLabel,
+              <Pressable key={p.seat} style={[styles.cupLabel,
                 { left: `${cupScreenX(i, arr.length) * 100}%` as never,
-                  top: `${cupScreenY(i, arr.length) * 100}%` as never }]}>
+                  top: `${cupScreenY(i, arr.length) * 100}%` as never }]}
+                onPress={() => send({ type: 'throw_item', payload: { item: 'tomato', seat: p.seat } })}>
                 <View style={[styles.cupTag, s.turnSeat === p.seat && styles.cupTagTurn]}>
                   <Text style={styles.cupCount}>{s.diceCounts[p.seat] ?? 0}</Text>
                 </View>
-              </View>
+              </Pressable>
             ))}
           </View>
           {s.revealedDice && (
@@ -110,7 +113,9 @@ export default function Room() {
               {s.players.filter(p => s.revealedDice![p.seat]).map(p => (
                 <View key={p.seat} style={styles.revealRow}>
                   <Text style={styles.revealName}>{p.name}</Text>
-                  <DiceRow dice={s.revealedDice![p.seat]} size={20} />
+                  <DiceRow dice={s.revealedDice![p.seat]} size={28}
+                    highlightValue={s.currentBid?.bid.value as DieValue | undefined}
+                    highlightWild={s.options.pacoWild} />
                 </View>
               ))}
             </View>
@@ -203,11 +208,11 @@ const styles = StyleSheet.create({
   bidZone: { alignItems: 'center', gap: 4 },
   bid: { color: '#f5e6c8', fontSize: 22, fontWeight: '800' },
   bidWho: { color: '#a89880', fontSize: 15, fontWeight: '400' },
-  revealOverlay: { position: 'absolute', top: '29%', alignSelf: 'center', gap: 4, alignItems: 'center',
-    backgroundColor: 'rgba(20,14,8,0.92)', borderRadius: 12, padding: 12, borderWidth: 1, borderColor: '#c8955c' },
-  revealTitle: { color: '#e8b74a', fontWeight: '800', fontSize: 15, marginBottom: 4 },
+  revealOverlay: { position: 'absolute', top: '29%', alignSelf: 'center', gap: 8, alignItems: 'center',
+    backgroundColor: 'rgba(20,14,8,0.92)', borderRadius: 14, padding: 18, borderWidth: 1.5, borderColor: '#c8955c' },
+  revealTitle: { color: '#e8b74a', fontWeight: '800', fontSize: 19, marginBottom: 6 },
   revealRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  revealName: { color: '#c8955c', fontSize: 12, width: 70, textAlign: 'right' },
+  revealName: { color: '#c8955c', fontSize: 15, width: 90, textAlign: 'right' },
   cupLabel: { position: 'absolute', transform: [{ translateX: -16 }], alignItems: 'center' },
   cupTag: { backgroundColor: 'rgba(26,20,16,0.85)', borderColor: '#c8955c', borderWidth: 1.5,
     borderRadius: 9, width: 32, height: 26, alignItems: 'center', justifyContent: 'center' },

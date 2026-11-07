@@ -49,6 +49,19 @@ type GodAction struct {
 	Dice   []int  `json:"dice,omitempty"`
 }
 
+// ThrowItemPayload : projectile lancé sur un joueur (fun).
+type ThrowItemPayload struct {
+	Item string `json:"item"` // "tomato"
+	Seat int    `json:"seat"` // cible
+}
+
+// ItemThrownPayload : broadcast d'un lancer.
+type ItemThrownPayload struct {
+	Item     string `json:"item"`
+	FromSeat int    `json:"fromSeat"`
+	Seat     int    `json:"seat"`
+}
+
 // ─── Client → Serveur ────────────────────────────────────────────────
 
 type ClientMessage struct {

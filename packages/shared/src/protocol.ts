@@ -61,6 +61,7 @@ export type ClientMessage =
       payload: { name: string; clientId: string; token?: string };
     }
   | { type: 'quick_leave' }
+  | { type: 'throw_item'; payload: { item: 'tomato'; seat: number } }
   | { type: 'start_game' }
   | { type: 'leave_game' }
   | { type: 'set_ready'; payload: { ready: boolean } }
@@ -135,6 +136,7 @@ export type ServerMessage =
   | Msg<'god_state', { allDice: Record<number, DieValue[]> }>
   | Msg<'god_powers', { actions: GodAction['action'][] }>
   | Msg<'chat', { from: number; text?: string; emote?: string }>
+  | Msg<'item_thrown', { item: string; fromSeat: number; seat: number }>
   | Msg<'resync', ResyncSnapshot>
   | Msg<'error', { code: string; message: string }>
   | Msg<'pong', Record<string, never>>;
