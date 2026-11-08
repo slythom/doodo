@@ -118,14 +118,19 @@ function Avatar({ index, total, variant, hitAt }: { index: number; total: number
   );
 }
 
-/** Angle du i-ème gobelet adverse en éventail (partagé 3D ↔ overlay HUD). */
+/** Angle du i-ème gobelet adverse en éventail (partagé 3D ↔ overlay HUD).
+ *  Symétrique autour du fond (270°, face caméra) — demi-ouverture bornée
+ *  pour que les avatars des extrémités restent dans le champ portrait. */
 export function cupAngle(index: number, total: number): number {
-  return Math.PI * 1.15 + (index * Math.PI) / Math.max(total - 1, 1);
+  if (total <= 1) return Math.PI * 1.5;
+  const half = Math.min(1.2, (total - 1) * 0.45);
+  const step = (half * 2) / (total - 1);
+  return Math.PI * 1.5 + (index - (total - 1) / 2) * step;
 }
 
 /** Position écran horizontale approximative (0..1) d'un gobelet — caméra fixe. */
 export function cupScreenX(index: number, total: number): number {
-  return 0.5 + Math.cos(cupAngle(index, total)) * CUP_DIST * 0.235;
+  return 0.5 + Math.cos(cupAngle(index, total)) * CUP_DIST * 0.18;
 }
 
 /** Position écran verticale (0..1) : plus le gobelet est loin (z<0), plus il monte. */
@@ -253,11 +258,11 @@ export function TableScene({ players, diceCounts, mySeat, godDice, turnSeat, thr
       style={styles.canvas}
       shadows
       dpr={[1, 2]}
-      camera={{ position: [0, 5.2, 8.6], fov: 58, near: 0.1, far: 60 }}
+      camera={{ position: [0, 6.0, 9.8], fov: 62, near: 0.1, far: 60 }}
       onCreated={({ camera }) => camera.lookAt(0, -0.5, 0)}
     >
       <color attach="background" args={['#171008']} />
-      <fog attach="fog" args={['#171008', 9, 20]} />
+      <fog attach="fog" args={['#171008', 10.5, 21.5]} />
       <ambientLight intensity={0.55} />
       <directionalLight position={[3, 6, 4]} intensity={1.4} castShadow />
       <directionalLight position={[0, 3, 8]} intensity={0.9} /> {/* fill frontal */}
