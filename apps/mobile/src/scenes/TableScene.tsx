@@ -25,6 +25,8 @@ export interface SceneProps {
 
 const TABLE_RADIUS = 2.6;
 const CUP_DIST = TABLE_RADIUS - 0.7;
+/** Rayon des avatars (derrière leur gobelet). */
+const AVATAR_DIST = CUP_DIST + 0.72;
 
 const SKIN_TONES = ['#f2c9a0', '#e0ac69', '#c68642', '#8d5524', '#a8764f', '#5c3a21'];
 
@@ -75,9 +77,8 @@ function Avatar({ index, total, variant, hitAt }: { index: number; total: number
   const mixer = useMemo(() => new AnimationMixer(clone), [clone]);
   const ref = useRef<Object3D>(null);
   const angle = cupAngle(index, total);
-  const r = CUP_DIST + 0.72;
-  const x = Math.cos(angle) * r;
-  const z = Math.sin(angle) * r;
+  const x = Math.cos(angle) * AVATAR_DIST;
+  const z = Math.sin(angle) * AVATAR_DIST;
   useEffect(() => {
     ref.current?.lookAt(0, 0.5, 0); // +Z du modèle vers le centre
     const idle = AnimationClip.findByName(animations, 'Idle') ?? animations[0];
@@ -128,15 +129,16 @@ export function cupAngle(index: number, total: number): number {
   return Math.PI * 1.5 + (index - (total - 1) / 2) * step;
 }
 
-/** Position écran horizontale approximative (0..1) d'un gobelet — caméra fixe. */
+/** Position écran horizontale approximative (0..1) d'un avatar — caméra fixe. */
 export function cupScreenX(index: number, total: number): number {
-  return 0.5 + Math.cos(cupAngle(index, total)) * CUP_DIST * 0.18;
+  return 0.5 + Math.cos(cupAngle(index, total)) * AVATAR_DIST * 0.15;
 }
 
-/** Position écran verticale (0..1) : plus le gobelet est loin (z<0), plus il monte. */
+/** Position écran verticale (0..1) : au-dessus de la tête de l'avatar —
+ *  plus il est loin (z<0), plus il monte à l'écran. */
 export function cupScreenY(index: number, total: number): number {
-  const z = Math.sin(cupAngle(index, total)) * CUP_DIST;
-  return 0.41 + z * 0.045;
+  const z = Math.sin(cupAngle(index, total)) * AVATAR_DIST;
+  return 0.40 + z * 0.045;
 }
 
 const CUP_COLORS = ['#a86f3d', '#8a5a2b', '#9c6b4a', '#7a4f2e', '#b07840', '#6e4a30'];
@@ -224,9 +226,8 @@ function Tomato({ targetIndex, targetTotal, done }: { targetIndex: number; targe
   const t = useRef(0);
   const splat = useRef(false);
   const angle = cupAngle(targetIndex, targetTotal);
-  const r = CUP_DIST + 0.72; // rayon des avatars
-  const tx = Math.cos(angle) * r;
-  const tz = Math.sin(angle) * r;
+  const tx = Math.cos(angle) * AVATAR_DIST;
+  const tz = Math.sin(angle) * AVATAR_DIST;
   const headY = 0.78;      // dessus de tête — visible au-dessus du gobelet
   useFrame((_s, dt) => {
     t.current += dt * 1.4;

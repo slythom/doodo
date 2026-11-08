@@ -99,13 +99,13 @@ export default function Room() {
               thrown={s.thrown}
               onThrow={(seat) => send({ type: 'throw_item', payload: { item: 'tomato', seat } })} />
           </View>
-          {/* Compte de dés au-dessus de chaque gobelet (overlay 2D, caméra fixe) */}
+          {/* Compte de dés au-dessus de chaque avatar (overlay 2D, caméra fixe).
+              Non interactif : le lancer de tomate se fait sur le gobelet 3D. */}
           <View pointerEvents="box-none" style={StyleSheet.absoluteFill}>
             {s.players.filter(p => p.seat !== s.mySeat && p.seat < 100).map((p, i, arr) => (
-              <Pressable key={p.seat} style={[styles.cupLabel,
+              <View key={p.seat} pointerEvents="none" style={[styles.cupLabel,
                 { left: `${Math.min(Math.max(cupScreenX(i, arr.length), 0.14), 0.86) * 100}%` as never,
-                  top: `${cupScreenY(i, arr.length) * 100}%` as never }]}
-                onPress={() => send({ type: 'throw_item', payload: { item: 'tomato', seat: p.seat } })}>
+                  top: `${cupScreenY(i, arr.length) * 100}%` as never }]}>
                 <View style={[styles.cupTag, s.turnSeat === p.seat && styles.cupTagTurn]}>
                   <Text style={styles.cupCount}>{s.diceCounts[p.seat] ?? 0}</Text>
                 </View>
@@ -114,7 +114,7 @@ export default function Room() {
                     <DiceRow dice={s.godDice[p.seat]} size={12} />
                   </View>
                 )}
-              </Pressable>
+              </View>
             ))}
           </View>
           <GameBadges godMode={s.options.godMode && (s.godPowers?.length ?? 0) > 0}
@@ -219,7 +219,8 @@ const styles = StyleSheet.create({
   bidZone: { alignItems: 'center', gap: 4 },
   bid: { color: '#f5e6c8', fontSize: 22, fontWeight: '800' },
   bidWho: { color: '#a89880', fontSize: 15, fontWeight: '400' },
-  cupLabel: { position: 'absolute', transform: [{ translateX: '-50%' }], alignItems: 'center' },
+  cupLabel: { position: 'absolute', transform: [{ translateX: '-50%' }, { translateY: '-110%' }],
+    alignItems: 'center' },
   cupTag: { backgroundColor: 'rgba(26,20,16,0.85)', borderColor: '#c8955c', borderWidth: 1.5,
     borderRadius: 9, width: 32, height: 26, alignItems: 'center', justifyContent: 'center' },
   cupTagTurn: { borderColor: '#e8b74a', backgroundColor: 'rgba(232,183,74,0.9)' },
