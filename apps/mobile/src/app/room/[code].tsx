@@ -227,7 +227,7 @@ const styles = StyleSheet.create({
   cupCount: { color: '#f5e6c8', fontSize: 14, fontWeight: '800' },
   godDiceBox: { marginTop: 3, backgroundColor: 'rgba(20,14,8,0.85)', borderRadius: 6, padding: 3 },
   myDice: { alignItems: 'center', gap: 6 },
-  turn: { position: 'absolute', top: '9%', alignSelf: 'center', color: '#e8b74a', fontSize: 24, fontWeight: '800', textShadowColor: '#000', textShadowRadius: 6 },
+  turn: { position: 'absolute', top: 8, alignSelf: 'center', color: '#e8b74a', fontSize: 24, fontWeight: '800', textShadowColor: '#000', textShadowRadius: 6 },
   standing: { color: '#f5e6c8', fontSize: 20, fontWeight: '600' },
   error: { position: 'absolute', bottom: 12, alignSelf: 'center', color: '#e05038', fontSize: 13 },
 });

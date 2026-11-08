@@ -1,10 +1,11 @@
 import '@/polyfills';
 import { Canvas, useFrame } from '@react-three/fiber';
-import { useGLTF } from '@react-three/drei';
+import { ContactShadows, Environment, Lightformer, useGLTF } from '@react-three/drei';
 import { Asset } from 'expo-asset';
 import { Suspense, useEffect, useMemo, useRef, useState } from 'react';
 import { StyleSheet } from 'react-native';
-import { AnimationAction, AnimationClip, AnimationMixer, LoopOnce, Vector2 } from 'three';
+import { AnimationAction, AnimationClip, AnimationMixer, BackSide, BufferAttribute,
+  BufferGeometry, Color, LoopOnce, ShaderMaterial, Vector2, Vector3 } from 'three';
 import { SkeletonUtils } from 'three-stdlib';
 import type { Group, Object3D } from 'three';
 import type { DieValue, PlayerInfo } from '@doodo/shared';
@@ -67,6 +68,7 @@ function Avatar({ index, total, variant, hitAt }: { index: number; total: number
     // Le matériau 'Skin' du pack est quasi noir par défaut — on le remplace
     // par une teinte de peau qui varie par siège.
     c.traverse((o) => {
+      if ((o as { isMesh?: boolean }).isMesh) o.castShadow = true;
       const m = (o as { material?: { name?: string; color?: { set: (v: string) => void } } }).material;
       if (m?.name === 'Skin' && m.color?.set) {
         m.color.set(SKIN_TONES[variant % SKIN_TONES.length]);
@@ -178,25 +180,25 @@ function OpponentCup({ index, total, count, isTurn, godDice, seat, onTap }: {
       <group ref={cup} position={[0, 0.02, 0]}>
         {/* Corps du gobelet */}
         <mesh castShadow onClick={onTap} onPointerDown={onTap}>
-          <latheGeometry args={[CUP_PROFILE, 20]} />
+          <latheGeometry args={[CUP_PROFILE, 32]} />
           <meshStandardMaterial
             color={isTurn ? '#e8b74a' : CUP_COLORS[seat % CUP_COLORS.length]}
-            flatShading roughness={0.75} />
+            roughness={0.6} envMapIntensity={0.7} />
         </mesh>
         {/* Bourrelet au bas */}
         <mesh position={[0, 0.035, 0]} rotation={[Math.PI / 2, 0, 0]} castShadow>
-          <torusGeometry args={[0.405, 0.045, 8, 20]} />
-          <meshStandardMaterial color={isTurn ? '#b8862e' : CUP_RIM} flatShading />
+          <torusGeometry args={[0.405, 0.045, 10, 24]} />
+          <meshStandardMaterial color={isTurn ? '#b8862e' : CUP_RIM} roughness={0.7} />
         </mesh>
         {/* Surpiqûre */}
         <mesh position={[0, 0.33, 0]} rotation={[Math.PI / 2, 0, 0]}>
-          <torusGeometry args={[0.353, 0.012, 6, 20]} />
-          <meshStandardMaterial color={CUP_STITCH} flatShading />
+          <torusGeometry args={[0.353, 0.012, 6, 24]} />
+          <meshStandardMaterial color={CUP_STITCH} roughness={0.8} />
         </mesh>
         {/* Médaillon au sommet */}
         <mesh position={[0, 0.615, 0]}>
-          <cylinderGeometry args={[0.09, 0.11, 0.02, 12]} />
-          <meshStandardMaterial color={isTurn ? '#b8862e' : CUP_RIM} flatShading />
+          <cylinderGeometry args={[0.09, 0.11, 0.02, 16]} />
+          <meshStandardMaterial color={isTurn ? '#b8862e' : CUP_RIM} roughness={0.7} />
         </mesh>
       </group>
     </group>
@@ -212,10 +214,11 @@ function Suspension() {
         <meshStandardMaterial color="#241a12" />
       </mesh>
       <mesh position={[0, 0.1, 0]}>
-        <coneGeometry args={[0.7, 0.5, 12, 1, true]} />
-        <meshStandardMaterial color="#c8955c" flatShading side={2} />
+        <coneGeometry args={[0.7, 0.5, 16, 1, true]} />
+        <meshStandardMaterial color="#c8955c" side={2} roughness={0.5} metalness={0.3} />
       </mesh>
-      <pointLight position={[0, -0.15, 0]} intensity={14} distance={9} color="#ffc98a" decay={2} />
+      <pointLight position={[0, -0.15, 0]} intensity={16} distance={9} color="#ffc98a" decay={2}
+        castShadow shadow-mapSize={[512, 512]} shadow-bias={-0.002} />
     </group>
   );
 }
@@ -253,12 +256,12 @@ function Tomato({ targetIndex, targetTotal, done }: { targetIndex: number; targe
   return (
     <group ref={g} position={[0, 0.9, 3.4]}>
       <mesh castShadow>
-        <sphereGeometry args={[0.2, 10, 8]} />
-        <meshStandardMaterial color="#c2352a" flatShading />
+        <sphereGeometry args={[0.2, 16, 12]} />
+        <meshStandardMaterial color="#c2352a" roughness={0.35} />
       </mesh>
       <mesh position={[0, 0.13, 0]}>
-        <coneGeometry args={[0.07, 0.1, 6]} />
-        <meshStandardMaterial color="#3d6b4f" flatShading />
+        <coneGeometry args={[0.07, 0.1, 8]} />
+        <meshStandardMaterial color="#3d6b4f" roughness={0.8} />
       </mesh>
     </group>
   );
@@ -267,19 +270,92 @@ function Tomato({ targetIndex, targetTotal, done }: { targetIndex: number; targe
 function Table() {
   return (
     <group>
+      {/* Plateau feutre */}
       <mesh position={[0, -0.05, 0]} receiveShadow>
-        <cylinderGeometry args={[TABLE_RADIUS, TABLE_RADIUS, 0.1, 24]} />
-        <meshStandardMaterial color="#2e5d43" flatShading />
+        <cylinderGeometry args={[TABLE_RADIUS, TABLE_RADIUS, 0.1, 48]} />
+        <meshStandardMaterial color="#2e5d43" roughness={0.95} envMapIntensity={0.15} />
       </mesh>
+      {/* Chant bois sous le plateau */}
+      <mesh position={[0, -0.07, 0]}>
+        <cylinderGeometry args={[TABLE_RADIUS + 0.06, TABLE_RADIUS + 0.04, 0.09, 48]} />
+        <meshStandardMaterial color="#4a2e18" roughness={0.55} envMapIntensity={0.4} />
+      </mesh>
+      {/* Pied */}
       <mesh position={[0, -0.6, 0]}>
-        <cylinderGeometry args={[0.18, 0.3, 1.1, 10]} />
-        <meshStandardMaterial color="#5a3a20" flatShading />
+        <cylinderGeometry args={[0.18, 0.34, 1.1, 16]} />
+        <meshStandardMaterial color="#4a2e18" roughness={0.6} />
       </mesh>
-      <mesh position={[0, -1.15, 0]} rotation={[-Math.PI / 2, 0, 0]}>
+      <mesh position={[0, -1.13, 0]}>
+        <cylinderGeometry args={[0.7, 0.8, 0.06, 20]} />
+        <meshStandardMaterial color="#3a2415" roughness={0.6} />
+      </mesh>
+      <mesh position={[0, -1.15, 0]} rotation={[-Math.PI / 2, 0, 0]} receiveShadow>
         <planeGeometry args={[30, 30]} />
-        <meshStandardMaterial color="#241a12" />
+        <meshStandardMaterial color="#1d130b" roughness={1} />
       </mesh>
     </group>
+  );
+}
+
+// Voûte céleste dégradée — chaud à l'horizon, presque noir au zénith.
+// ShaderMaterial : dégradé par pixel (les vertex colors bandaient) et
+// pas de DOM canvas en React Native.
+function SkyDome() {
+  const mat = useMemo(() => new ShaderMaterial({
+    uniforms: {
+      cHorizon: { value: new Color('#3a2412') },
+      cLow: { value: new Color('#171008') },
+      cZenith: { value: new Color('#050302') },
+    },
+    vertexShader: `varying vec2 vUv;
+      void main() { vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }`,
+    fragmentShader: `varying vec2 vUv;
+      uniform vec3 cHorizon, cLow, cZenith;
+      void main() {
+        float y = vUv.y;
+        vec3 c = mix(cLow, cHorizon, smoothstep(0.38, 0.55, y));
+        c = mix(c, cZenith, smoothstep(0.58, 0.92, y));
+        gl_FragColor = vec4(c, 1.0);
+        #include <tonemapping_fragment>
+        #include <colorspace_fragment>
+      }`,
+    side: BackSide,
+    depthWrite: false,
+  }), []);
+  return (
+    <mesh scale={45} material={mat}>
+      <sphereGeometry args={[1, 48, 32]} />
+    </mesh>
+  );
+}
+
+// Champ d'étoiles maison — <Stars> de drei envoie un booléen dans un
+// uniform float (crash expo-gl). Points fixes, sans uniform custom.
+function StarField({ count = 1200, radius = 44 }: { count?: number; radius?: number }) {
+  const geo = useMemo(() => {
+    const g = new BufferGeometry();
+    const pos = new Float32Array(count * 3);
+    const col = new Float32Array(count * 3);
+    const v = new Vector3();
+    const c = new Color();
+    for (let i = 0; i < count; i++) {
+      v.setFromSphericalCoords(
+        radius + Math.random() * 8,
+        Math.acos(1 - 2 * Math.random()),
+        Math.random() * Math.PI * 2);
+      pos.set([v.x, v.y, v.z], i * 3);
+      c.setHSL(0.08 + Math.random() * 0.04, 0.3, 0.45 + Math.random() * 0.45);
+      col.set([c.r, c.g, c.b], i * 3);
+    }
+    g.setAttribute('position', new BufferAttribute(pos, 3));
+    g.setAttribute('color', new BufferAttribute(col, 3));
+    return g;
+  }, [count, radius]);
+  return (
+    <points geometry={geo}>
+      <pointsMaterial size={1.8} sizeAttenuation={false} vertexColors
+        transparent opacity={0.9} depthWrite={false} fog={false} />
+    </points>
   );
 }
 
@@ -289,19 +365,42 @@ export function TableScene({ players, diceCounts, mySeat, godDice, turnSeat, thr
   return (
     <Canvas
       style={styles.canvas}
-      shadows
+      shadows="soft"
       dpr={[1, 2]}
+      gl={{ toneMappingExposure: 1.15 }}
       camera={{ position: [0, 6.0, 9.8], fov: 62, near: 0.1, far: 60 }}
       onCreated={({ camera }) => camera.lookAt(0, -0.5, 0)}
     >
       <color attach="background" args={['#171008']} />
       <fog attach="fog" args={['#171008', 10.5, 21.5]} />
-      <ambientLight intensity={0.55} />
-      <directionalLight position={[3, 6, 4]} intensity={1.4} castShadow />
-      <directionalLight position={[0, 3, 8]} intensity={0.9} /> {/* fill frontal */}
-      <hemisphereLight args={['#f5e6c8', '#241a12', 0.5]} />
+      <SkyDome />
+      <StarField />
+      {/* Env map procédurale (Lightformer, pas d'asset) → reflets cuir/bois */}
+      <Environment resolution={128}>
+        <Lightformer intensity={4} color="#ffd9a0" position={[0, 5, 1]}
+          scale={[6, 6, 1]} rotation={[-Math.PI / 2, 0, 0]} />
+        <Lightformer intensity={1.2} color="#3a4a70" position={[0, 3, -9]}
+          scale={[14, 4, 1]} />
+        <Lightformer intensity={0.8} color="#7a4a28" position={[-8, 2, 2]}
+          scale={[4, 6, 1]} rotation={[0, Math.PI / 2, 0]} />
+      </Environment>
+      <ambientLight intensity={0.25} />
+      {/* Key light chaude */}
+      <directionalLight position={[4, 7, 3]} intensity={1.8} color="#ffe3b8" castShadow
+        shadow-mapSize={[1024, 1024]}
+        shadow-camera-left={-4} shadow-camera-right={4}
+        shadow-camera-top={4} shadow-camera-bottom={-4}
+        shadow-camera-near={1} shadow-camera-far={20}
+        shadow-bias={-0.0004} />
+      {/* Rim light froide dans le dos des joueurs */}
+      <directionalLight position={[-3, 4, -6]} intensity={0.7} color="#8aa0d8" />
+      <directionalLight position={[0, 3, 8]} intensity={0.35} /> {/* fill frontal */}
+      <hemisphereLight args={['#f5e6c8', '#241a12', 0.3]} />
       <Suspension />
       <Table />
+      {/* Ombres de contact pour ancrer gobelets/avatars sur le feutre */}
+      <ContactShadows position={[0, 0.005, 0]} scale={7} far={1.2}
+        blur={2.2} opacity={0.55} resolution={256} />
       {opponents.map((p, i) => (
         <OpponentCup
           key={p.seat}
