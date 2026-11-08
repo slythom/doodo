@@ -1,12 +1,22 @@
 import '@/polyfills';
 import { Canvas, useFrame } from '@react-three/fiber';
-import { useGLTF } from '@react-three/drei';
+import { RoundedBox, Sparkles, useGLTF } from '@react-three/drei';
 import { Asset } from 'expo-asset';
 import { Suspense, useEffect, useMemo, useRef, useState } from 'react';
 import { StyleSheet } from 'react-native';
-import { AnimationAction, AnimationClip, AnimationMixer, LoopOnce } from 'three';
+import {
+  AnimationAction,
+  AnimationClip,
+  AnimationMixer,
+  DataTexture,
+  LoopOnce,
+  RepeatWrapping,
+  SRGBColorSpace,
+  Vector2,
+  type Group,
+  type Object3D,
+} from 'three';
 import { SkeletonUtils } from 'three-stdlib';
-import type { Group, Object3D } from 'three';
 import type { DieValue, PlayerInfo } from '@doodo/shared';
 
 export interface SceneProps {
@@ -36,8 +46,6 @@ const AVATARS: string[] = [
   // eslint-disable-next-line @typescript-eslint/no-require-imports
   Asset.fromModule(require('../../assets/models/avatar_Casual2_Male.glb')).uri,
   // eslint-disable-next-line @typescript-eslint/no-require-imports
-  Asset.fromModule(require('../../assets/models/avatar_Casual2_Female.glb')).uri,
-  // eslint-disable-next-line @typescript-eslint/no-require-imports
   Asset.fromModule(require('../../assets/models/avatar_Casual3_Male.glb')).uri,
   // eslint-disable-next-line @typescript-eslint/no-require-imports
   Asset.fromModule(require('../../assets/models/avatar_Casual_Bald.glb')).uri,
@@ -65,9 +73,11 @@ function Avatar({ index, total, variant, hitAt }: { index: number; total: number
     // Le matériau 'Skin' du pack est quasi noir par défaut — on le remplace
     // par une teinte de peau qui varie par siège.
     c.traverse((o) => {
-      const m = (o as { material?: { name?: string; color?: { set: (v: string) => void } } }).material;
+      const m = (o as { material?: { name?: string; color?: { set: (v: string) => void }; roughness?: number; metalness?: number } }).material;
       if (m?.name === 'Skin' && m.color?.set) {
         m.color.set(SKIN_TONES[variant % SKIN_TONES.length]);
+        m.roughness = 0.85; // rendu mat, sans reflets plastique
+        m.metalness = 0;
       }
     });
     return c;
@@ -136,6 +146,61 @@ export function cupScreenY(index: number, total: number): number {
 
 const CUP_COLORS = ['#a86f3d', '#8a5a2b', '#9c6b4a', '#7a4f2e', '#b07840', '#6e4a30'];
 
+/** Profil tourné d'un gobelet en bois (au units) : ventre arrondi, col, lèvre. */
+const cupProfile = (
+  [
+    [0.285, 0.00],
+    [0.348, 0.03],
+    [0.372, 0.15],
+    [0.345, 0.30],
+    [0.312, 0.38],
+    [0.326, 0.46],
+    [0.343, 0.52],
+    [0.328, 0.555], // lèvre extérieure
+    [0.310, 0.565], // dessus de lèvre
+    [0.300, 0.51],  // paroi interne
+    [0.262, 0.42],  // fond interne
+    [0.001, 0.405],
+  ] as [number, number][]
+).map(([r, y]) => new Vector2(r, y));
+
+/**
+ * Filigrane procédural pour le feutre de la table (grain fin).
+ * DataTexture : le seul type de texture réalisable sur canvas natif (pas de 2D canvas RN).
+ */
+function makeFeltTextures(baseHex: string, variance = 14) {
+  const n = 64;
+  const base = {
+    r: parseInt(baseHex.slice(1, 3), 16),
+    g: parseInt(baseHex.slice(3, 5), 16),
+    b: parseInt(baseHex.slice(5, 7), 16),
+  };
+  const build = () => {
+    const data = new Uint8Array(n * n * 4);
+    let seed = 0x1234abcd;
+    const rand = () => { // xorshift déterministe
+      seed ^= seed << 13; seed ^= seed >>> 17; seed ^= seed << 5;
+      return ((seed >>> 0) % 1000) / 1000;
+    };
+    for (let i = 0; i < n * n; i++) {
+      const d = (rand() - 0.5) * 2 * variance;
+      data[i * 4 + 0] = Math.max(0, Math.min(255, base.r + d));
+      data[i * 4 + 1] = Math.max(0, Math.min(255, base.g + d));
+      data[i * 4 + 2] = Math.max(0, Math.min(255, base.b + d));
+      data[i * 4 + 3] = 255;
+    }
+    const t = new DataTexture(data, n, n);
+    t.wrapS = t.wrapT = RepeatWrapping;
+    t.repeat.set(6, 6);
+    t.needsUpdate = true;
+    return t;
+  };
+  const map = build();
+  map.colorSpace = SRGBColorSpace; // albedo
+  const bump = build(); // bumped reste en linéaire
+  return { map, bump };
+}
+
 // Gobelet d'un adversaire + sa pile de dés (compte) ou ses dés révélés (god).
 function OpponentCup({ index, total, count, isTurn, godDice, seat, onTap }: {
   index: number; total: number; count: number; isTurn: boolean; godDice?: DieValue[]; seat: number;
@@ -146,25 +211,98 @@ function OpponentCup({ index, total, count, isTurn, godDice, seat, onTap }: {
   const x = Math.cos(angle) * CUP_DIST;
   const z = Math.sin(angle) * CUP_DIST;
   const cup = useRef<Group>(null);
+  const rim = useRef<Object3D>(null);
   useFrame((s) => {
     if (cup.current && isTurn) {
       cup.current.position.y = 0.32 + Math.sin(s.clock.elapsedTime * 4) * 0.03;
+      cup.current.rotation.z = Math.sin(s.clock.elapsedTime * 2.3) * 0.05; // frémissement d'attente
+    }
+    // Anneau doré pulsant quand c'est le tour de ce siège.
+    if (rim.current) {
+      const m = (rim.current as unknown as { material?: { emissiveIntensity?: number } }).material;
+      if (m?.emissiveIntensity !== undefined) {
+        m.emissiveIntensity = isTurn ? 0.6 + Math.sin(s.clock.elapsedTime * 4) * 0.35 : 0.06;
+      }
     }
   });
+  const wood = CUP_COLORS[seat % CUP_COLORS.length];
   return (
     <group position={[x, 0, z]}>
       <group ref={cup} position={[0, 0.32, 0]}>
+        {/* corps tourné, ombrage lisse + liseré doré */}
         <mesh castShadow onClick={onTap} onPointerDown={onTap}>
-          <cylinderGeometry args={[0.3, 0.38, 0.6, 12]} />
-          <meshStandardMaterial color={isTurn ? '#e8b74a' : CUP_COLORS[seat % CUP_COLORS.length]} flatShading />
+          <latheGeometry args={[cupProfile, 26]} />
+          <meshStandardMaterial color={wood} roughness={0.75} metalness={0.04} />
+        </mesh>
+        <mesh ref={rim} position={[0, 0.545, 0]} rotation={[Math.PI / 2, 0, 0]}>
+          <torusGeometry args={[0.33, 0.014, 8, 26]} />
+          <meshStandardMaterial
+            color={isTurn ? '#e8b74a' : '#c8b088'}
+            emissive="#e8b74a"
+            emissiveIntensity={0.06}
+            roughness={0.35}
+            metalness={0.85}
+          />
         </mesh>
       </group>
-
+      {godDice && godDice.length > 0 && <RevealDice angle={angle} dice={godDice} />}
     </group>
   );
 }
 
-// Suspension stylisée : abat-jour + ampoule chaude au-dessus de la table.
+/**
+ * Dés révélés (mode divin) alignés devant le gobelet, valeur au-dessus.
+ * Dé disposé normalement (cube arrondi) : pacs symbolisés par un pion doré.
+ */
+const DIE_SIZE = 0.15;
+function pipOffsets(value: DieValue): [number, number][] {
+  // Grille 3×3 sur la face supérieure (-même map que le HUD 2D).
+  const P: Record<number, number[]> = {
+    1: [4], 2: [0, 8], 3: [0, 4, 8], 4: [0, 2, 6, 8], 5: [0, 2, 4, 6, 8], 6: [0, 2, 3, 5, 6, 8],
+  };
+  const cells = P[Math.min(6, Math.max(1, value))] ?? [];
+  const step = DIE_SIZE * 0.30;
+  return cells.map((c) => [((c % 3) - 1) * step, (Math.floor(c / 3) - 1) * step]);
+}
+
+function RevealDice({ angle, dice }: { angle: number; dice: DieValue[] }) {
+  const dirX = -Math.cos(angle), dirZ = -Math.sin(angle); // vers le centre
+  const perpX = -dirZ, perpZ = dirX;
+  const n = Math.min(dice.length, 5);
+  return (
+    <group>
+      {Array.from({ length: n }, (_, i) => {
+        const v = dice[i];
+        const lateral = (i - (n - 1) / 2) * (DIE_SIZE + 0.035);
+        const depth = 0.45 + (i % 2) * 0.05; // léger décalage en profondeur
+        const px = dirX * depth + perpX * lateral;
+        const pz = dirZ * depth + perpZ * lateral;
+        const paco = v === 1;
+        return (
+          <group key={i} position={[px, DIE_SIZE / 2, pz]} rotation={[0, angle + i * 0.42, 0]}>
+            <RoundedBox args={[DIE_SIZE, DIE_SIZE, DIE_SIZE]} radius={0.02} smoothness={3} castShadow>
+              <meshStandardMaterial color={paco ? '#20343a' : '#e8e2d4'} roughness={0.4} />
+            </RoundedBox>
+            {picoPips(v, paco)}
+          </group>
+        );
+      })}
+    </group>
+  );
+}
+
+function picoPips(v: DieValue, paco: boolean) {
+  const color = paco ? '#f2c14e' : '#2b2620';
+  const r = paco ? 0.028 : 0.02;
+  return pipOffsets(v).map(([ox, oz], i) => (
+    <mesh key={i} position={[ox, DIE_SIZE / 2 + 0.001, oz]}>
+      <sphereGeometry args={[r, 8, 6]} />
+      <meshStandardMaterial color={color} roughness={0.5} />
+    </mesh>
+  ));
+}
+
+// Suspension stylisée : abat-jour + ampoule chaude au-dessus de la table + poussière lumineuse.
 function Suspension() {
   return (
     <group position={[0, 4.2, 0]}>
@@ -176,16 +314,19 @@ function Suspension() {
         <coneGeometry args={[0.7, 0.5, 12, 1, true]} />
         <meshStandardMaterial color="#c8955c" flatShading side={2} />
       </mesh>
-      <pointLight position={[0, -0.15, 0]} intensity={14} distance={9} color="#ffc98a" decay={2} />
+      <pointLight position={[0, -0.15, 0]} intensity={16} distance={10} color="#ffc98a" decay={2} />
+      <Sparkles count={24} scale={[3.2, 2.2, 3.2]} position={[0, -0.6, 0]} size={1.4} speed={0.12} opacity={0.45} color="#ffdda6" />
     </group>
   );
 }
 
-// Tomate lancée : arc parabolique vers le gobelet de la cible, puis "splat".
+// Tomate lancée : arc parabolique vers le gobelet de la cible, puis "splat" + éclaboussure.
 function Tomato({ targetIndex, targetTotal, done }: { targetIndex: number; targetTotal: number; done: () => void }) {
   const g = useRef<Group>(null);
   const t = useRef(0);
   const splat = useRef(false);
+  // Phase splat portée en state: force le re-render qui affiche décalque + éclaboussure.
+  const [splatting, setSplatting] = useState(false);
   const angle = cupAngle(targetIndex, targetTotal);
   const r = CUP_DIST + 0.72; // rayon des avatars
   const tx = Math.cos(angle) * r;
@@ -196,11 +337,13 @@ function Tomato({ targetIndex, targetTotal, done }: { targetIndex: number; targe
     if (!g.current) return;
     if (!splat.current && t.current >= 1) {
       splat.current = true;
+      setSplatting(true);
       setTimeout(done, 400);
     }
     if (splat.current) {
-      // écrasement au sol
+      // écrasement au sol sur le point d'impact
       g.current.scale.set(2.4, 0.12, 2.4);
+      g.current.position.set(tx, 0.02, tz);
       return;
     }
     const k = t.current;
@@ -213,25 +356,45 @@ function Tomato({ targetIndex, targetTotal, done }: { targetIndex: number; targe
     g.current.rotation.z = k * 7;
   });
   return (
-    <group ref={g} position={[0, 0.9, 3.4]}>
-      <mesh castShadow>
-        <sphereGeometry args={[0.2, 10, 8]} />
-        <meshStandardMaterial color="#c2352a" flatShading />
-      </mesh>
-      <mesh position={[0, 0.13, 0]}>
-        <coneGeometry args={[0.07, 0.1, 6]} />
-        <meshStandardMaterial color="#3d6b4f" flatShading />
-      </mesh>
-    </group>
+    <>
+      <group ref={g} position={[0, 0.9, 3.4]}>
+        <mesh castShadow>
+          <sphereGeometry args={[0.2, 14, 12]} />
+          <meshStandardMaterial color="#c2352a" roughness={0.35} />
+        </mesh>
+        <mesh position={[0, 0.13, 0]}>
+          <coneGeometry args={[0.07, 0.1, 6]} />
+          <meshStandardMaterial color="#3d6b4f" flatShading />
+        </mesh>
+      </group>
+      {splatting && (
+        <>
+          {/* trace de sauce sur la table, au point d'impact */}
+          <mesh position={[tx, 0.01, tz]} rotation={[-Math.PI / 2, 0, 0]}>
+            <circleGeometry args={[0.42, 20]} />
+            <meshStandardMaterial color="#6e1811" roughness={0.9} transparent opacity={0.65} />
+          </mesh>
+          {/* gouttelettes d'impact */}
+          <Sparkles count={16} scale={[0.7, 0.35, 0.7]} position={[tx, 0.1, tz]} size={2.2} speed={1.4} color="#e04b3a" />
+        </>
+      )}
+    </>
   );
 }
 
 function Table() {
+  const felt = useMemo(() => makeFeltTextures('#2e5d43', 16), []);
   return (
     <group>
+      {/* feutre texturé */}
       <mesh position={[0, -0.05, 0]} receiveShadow>
-        <cylinderGeometry args={[TABLE_RADIUS, TABLE_RADIUS, 0.1, 24]} />
-        <meshStandardMaterial color="#2e5d43" flatShading />
+        <cylinderGeometry args={[TABLE_RADIUS, TABLE_RADIUS, 0.1, 40]} />
+        <meshStandardMaterial map={felt.map} bumpMap={felt.bump} bumpScale={0.35} roughness={0.95} color="#ffffff" />
+      </mesh>
+      {/* liseré bois du plateau */}
+      <mesh position={[0, -0.05, 0]} rotation={[Math.PI / 2, 0, 0]}>
+        <torusGeometry args={[TABLE_RADIUS + 0.02, 0.055, 10, 48]} />
+        <meshStandardMaterial color="#5a3a20" roughness={0.6} />
       </mesh>
       <mesh position={[0, -0.6, 0]}>
         <cylinderGeometry args={[0.18, 0.3, 1.1, 10]} />
@@ -258,10 +421,14 @@ export function TableScene({ players, diceCounts, mySeat, godDice, turnSeat, thr
     >
       <color attach="background" args={['#171008']} />
       <fog attach="fog" args={['#171008', 9, 20]} />
-      <ambientLight intensity={0.55} />
-      <directionalLight position={[3, 6, 4]} intensity={1.4} castShadow />
-      <directionalLight position={[0, 3, 8]} intensity={0.9} /> {/* fill frontal */}
-      <hemisphereLight args={['#f5e6c8', '#241a12', 0.5]} />
+      <ambientLight intensity={0.35} />
+      <directionalLight
+        position={[3, 6, 4]} intensity={1.6} color="#ffe6c4" castShadow
+        shadow-mapSize={[1024, 1024]} shadow-bias={-0.0002} shadow-normalBias={0.02}
+      />
+      <directionalLight position={[0, 3, 8]} intensity={0.45} color="#9db6ff" />  {/* fill frontal froid */}
+      <directionalLight position={[-4, 3, -2]} intensity={0.55} color="#ff9b4a" /> {/* rim chaud arrière-gauche */}
+      <hemisphereLight args={['#f5e6c8', '#241a12', 0.35]} />
       <Suspension />
       <Table />
       {opponents.map((p, i) => (
