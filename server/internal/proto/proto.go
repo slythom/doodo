@@ -156,6 +156,11 @@ type RevealPayload struct {
 	Remaining int           `json:"remaining"` // dés restants du perdant
 }
 
+// NextRoundReadyPayload : sièges ayant cliqué « manche suivante ».
+type NextRoundReadyPayload struct {
+	Seats []int `json:"seats"`
+}
+
 type EliminatedPayload struct {
 	Seat      int `json:"seat"`
 	FinalRank int `json:"finalRank"`

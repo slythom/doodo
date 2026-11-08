@@ -1,6 +1,7 @@
 package actor
 
 import (
+	"sort"
 	"time"
 
 	"doodo/server/internal/bot"
@@ -224,6 +225,7 @@ func (a *Actor) handleCall(p *player, kind string) {
 
 func (a *Actor) resolve(res game.Resolution) {
 	a.phase = phaseResolving
+	a.readyNext = map[int]bool{}
 	a.bumpGen()
 
 	all := map[int][]int{}
@@ -270,7 +272,64 @@ func (a *Actor) resolve(res game.Resolution) {
 			a.eliminate(p, "dice_lost")
 		}
 	}
+	// Filet de sécurité : la manche suivante part dès que tous les joueurs
+	// ont cliqué « manche suivante », sinon au bout de revealWait.
 	a.after(a.revealWait, "reveal", -1)
+}
+
+// handleNextRound : le joueur est prêt à enchaîner. La manche démarre dès
+// que tous les joueurs humains connectés encore en jeu ont cliqué.
+func (a *Actor) handleNextRound(p *player) {
+	if a.phase != phaseResolving || p.spectator || a.readyNext[p.seat] {
+		return
+	}
+	a.readyNext[p.seat] = true
+	seats := make([]int, 0, len(a.readyNext))
+	for s := range a.readyNext {
+		seats = append(seats, s)
+	}
+	sort.Ints(seats)
+	a.broadcast("next_round_ready", proto.NextRoundReadyPayload{Seats: seats})
+	a.maybeFinishReveal()
+}
+
+// nextRoundRequired : sièges devant cliquer pour abréger la révélation —
+// joueurs humains connectés encore en vie (bots et spectateurs exclus).
+func (a *Actor) nextRoundRequired() []int {
+	var out []int
+	for _, p := range a.alive() {
+		if !p.bot && p.connected {
+			out = append(out, p.seat)
+		}
+	}
+	return out
+}
+
+// maybeFinishReveal enchaîne si tous les joueurs requis sont prêts. S'il
+// n'y a personne à attendre (que des bots), on laisse le timer trancher.
+func (a *Actor) maybeFinishReveal() {
+	if a.phase != phaseResolving {
+		return
+	}
+	req := a.nextRoundRequired()
+	if len(req) == 0 {
+		return
+	}
+	for _, s := range req {
+		if !a.readyNext[s] {
+			return
+		}
+	}
+	a.finishReveal()
+}
+
+// finishReveal clôt la révélation : partie finie ou manche suivante.
+func (a *Actor) finishReveal() {
+	if len(a.alive()) <= 1 {
+		a.finishGame()
+		return
+	}
+	a.startRound()
 }
 
 func (a *Actor) eliminate(p *player, reason string) {
@@ -381,11 +440,7 @@ func (a *Actor) handleTimer(e evTimer) {
 		if a.phase != phaseResolving {
 			return
 		}
-		if len(a.alive()) <= 1 {
-			a.finishGame()
-			return
-		}
-		a.startRound()
+		a.finishReveal()
 	case "grace":
 		p := a.players[e.seat]
 		if p != nil && !p.connected && a.inPlay() {

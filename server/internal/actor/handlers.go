@@ -140,6 +140,8 @@ func (a *Actor) handleDisconnect(clientID string) {
 				Seat: p.seat, GraceDeadline: deadline,
 			})
 			a.after(gracePeriod, "grace", p.seat)
+			// Sa participation n'est plus requise pour abréger la révélation.
+			a.maybeFinishReveal()
 			return
 		}
 	}
@@ -202,6 +204,8 @@ func (a *Actor) handleClientMsg(seat int, msg proto.ClientMessage) {
 		a.handleCall(p, "dudo")
 	case "calza":
 		a.handleCall(p, "calza")
+	case "next_round":
+		a.handleNextRound(p)
 	case "god_action":
 		var pl proto.GodAction
 		if msg.Decode(&pl) == nil {
@@ -231,6 +235,7 @@ func (a *Actor) handleLeave(p *player) {
 	p.connected = false
 	p.send = nil
 	a.eliminate(p, "abandon")
+	a.maybeFinishReveal()
 }
 
 func (a *Actor) handleUpdateOptions(p *player, opts proto.TableOptions) {

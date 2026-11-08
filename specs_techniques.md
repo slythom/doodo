@@ -141,6 +141,7 @@ Messages JSON `{ "type": "...", "seq": n, "payload": {...} }`. `seq` côté serv
 | `bid` | `{qty, value}` | value 1 = Paco |
 | `dudo` | `{}` | |
 | `calza` | `{}` | |
+| `next_round` | `{}` | prêt pour la manche suivante (révélation) |
 | `god_action` | `{action, seat?, dice?}` | actions : `set_dice`, `force_resolve`, `kick`, `end_game` — privilège vérifié serveur (admin ou mode dieu de table) |
 | `chat` | `{text}` ou `{emote}` | |
 | `ping` | `{}` | keepalive app-level |
@@ -155,6 +156,7 @@ Messages JSON `{ "type": "...", "seq": n, "payload": {...} }`. `seq` côté serv
 | `bid_placed` | partie | `{seat, qty, value}` |
 | `dudo_called` / `calza_called` | partie | `{seat}` |
 | `reveal` | partie | `{allDice:{seat:[...]}, matched:n, loser:seat, remaining:n}` |
+| `next_round_ready` | partie | `{seats:[...]}` — joueurs prêts ; la manche part dès que tous les humains connectés en vie ont cliqué, sinon après 20 s |
 | `player_eliminated` | partie | `{seat, finalRank}` |
 | `game_ended` | partie | classement + stats |
 | `turn` | partie | `{seat, deadline}` |

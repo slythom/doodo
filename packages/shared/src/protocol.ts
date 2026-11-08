@@ -71,6 +71,7 @@ export type ClientMessage =
   | { type: 'bid'; payload: Bid }
   | { type: 'dudo' }
   | { type: 'calza' }
+  | { type: 'next_round' }
   | { type: 'god_action'; payload: GodAction }
   | { type: 'chat'; payload: { text?: string; emote?: string } }
   | { type: 'ping' };
@@ -130,6 +131,7 @@ export type ServerMessage =
   | Msg<'dudo_called', { seat: number }>
   | Msg<'calza_called', { seat: number }>
   | Msg<'reveal', { allDice: Record<number, DieValue[]>; matched: number; loser: number; remaining: number }>
+  | Msg<'next_round_ready', { seats: number[] }>
   | Msg<'player_eliminated', { seat: number; finalRank: number }>
   | Msg<'game_ended', { standings: Standing[] }>
   | Msg<'player_disconnected' | 'player_reconnected', { seat: number; graceDeadline?: number }>

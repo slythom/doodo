@@ -23,7 +23,7 @@ const (
 	phaseEnded     = "ended"
 
 	gracePeriod    = 90 * time.Second
-	revealPause    = 6 * time.Second
+	revealPause    = 20 * time.Second // filet de sécurité : tous prêts = skip
 	godRollTimeout = 10 * time.Second
 )
 
@@ -113,6 +113,7 @@ type Actor struct {
 	waitingDice     map[int]bool // sièges devant encore choisir leurs dés (god)
 	pendingPalifico bool         // manche palifico en attente du roll différé (god)
 	lastLoser       int
+	readyNext       map[int]bool // sièges prêts pour la manche suivante (phase resolving)
 }
 
 // New crée un acteur. opts validé via le moteur de règles.

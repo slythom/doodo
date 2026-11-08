@@ -38,6 +38,12 @@ export interface GameState {
   /** État matchmaking (si en file de partie rapide). */
   matchmaking: { state: 'waiting' | 'matched'; position?: number; size?: number } | null;
   revealedDice: Record<number, DieValue[]> | null;
+  /** Dernier appel à l'arbitre (dudo/calza) — qui l'a lancé. */
+  call: { kind: 'dudo' | 'calza'; seat: number } | null;
+  /** Résultat de la révélation : dés comptés, perdant, dés restants. */
+  resolution: { matched: number; loser: number; remaining: number } | null;
+  /** Sièges ayant cliqué « manche suivante » pendant la révélation. */
+  revealReady: number[];
   standings: Standing[] | null;
   chat: ChatEntry[];
   /** Dernier projectile lancé (cle = timestamp pour re-render). */
@@ -61,6 +67,9 @@ export const initialState: GameState = {
   chooseDiceDeadline: null,
   matchmaking: null,
   revealedDice: null,
+  call: null,
+  resolution: null,
+  revealReady: [],
   standings: null,
   chat: [],
   thrown: null,
@@ -114,6 +123,9 @@ export function applyServerMessage(
         diceCounts: msg.payload.diceCounts,
         currentBid: null,
         revealedDice: null,
+        call: null,
+        resolution: null,
+        revealReady: [],
         chooseDiceDeadline: null,
       }));
       break;
@@ -124,11 +136,23 @@ export function applyServerMessage(
       set(() => ({ currentBid: { seat: msg.payload.seat, bid: msg.payload.bid } }));
       break;
     case 'dudo_called':
+      set(() => ({ phase: 'resolving', call: { kind: 'dudo', seat: msg.payload.seat } }));
+      break;
     case 'calza_called':
-      set(() => ({ phase: 'resolving' }));
+      set(() => ({ phase: 'resolving', call: { kind: 'calza', seat: msg.payload.seat } }));
       break;
     case 'reveal':
-      set(() => ({ revealedDice: msg.payload.allDice }));
+      set(() => ({
+        revealedDice: msg.payload.allDice,
+        resolution: {
+          matched: msg.payload.matched,
+          loser: msg.payload.loser,
+          remaining: msg.payload.remaining,
+        },
+      }));
+      break;
+    case 'next_round_ready':
+      set(() => ({ revealReady: msg.payload.seats }));
       break;
     case 'player_eliminated':
       set((s) => {

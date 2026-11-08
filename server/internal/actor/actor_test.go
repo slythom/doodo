@@ -152,6 +152,60 @@ func TestFullGame(t *testing.T) {
 	t.Fatal("partie non terminée en 15 s")
 }
 
+// « Manche suivante » : la révélation ne s'abrège que lorsque tous les
+// joueurs humains connectés ont cliqué ; sinon le timer tranche.
+func TestNextRoundGate(t *testing.T) {
+	a := newTestActor(t, proto.TableOptions{})
+	a.revealWait = 10 * time.Second // sans le gate, le test échouerait par timeout
+	c0, c1 := &fakeClient{}, &fakeClient{}
+	s0 := join(t, a, c0, "Alice", "c0")
+	s1 := join(t, a, c1, "Bob", "c1")
+
+	a.PostClientMsg(s0, proto.ClientMessage{Type: "start_game"})
+	waitFor(t, c0, "round_started", 2*time.Second)
+
+	// Enchère min du joueur de tour, puis dudo de l'autre.
+	bidder := waitFor(t, c0, "turn", 2*time.Second).Payload.(proto.TurnPayload).Seat
+	doubter := s0 + s1 - bidder
+	p, _ := mustJSON(proto.Bid{Qty: 1, Value: 1})
+	a.PostClientMsg(bidder, proto.ClientMessage{Type: "bid", Payload: p})
+	deadline := time.Now().Add(2 * time.Second)
+	for time.Now().Before(deadline) {
+		if m := c0.last("turn"); m != nil && m.Payload.(proto.TurnPayload).Seat == doubter {
+			break
+		}
+		time.Sleep(2 * time.Millisecond)
+	}
+	a.PostClientMsg(doubter, proto.ClientMessage{Type: "dudo"})
+	waitFor(t, c0, "reveal", 2*time.Second)
+
+	if n := len(c0.ofType("round_started")); n != 1 {
+		t.Fatalf("round_started=%d, attendu 1", n)
+	}
+
+	// Un seul clic → statut broadcast, mais la manche ne part pas.
+	a.PostClientMsg(s0, proto.ClientMessage{Type: "next_round"})
+	ready := waitFor(t, c1, "next_round_ready", 2*time.Second)
+	seats := ready.Payload.(proto.NextRoundReadyPayload).Seats
+	if len(seats) != 1 || seats[0] != s0 {
+		t.Fatalf("next_round_ready seats=%v, attendu [%d]", seats, s0)
+	}
+	time.Sleep(30 * time.Millisecond)
+	if n := len(c0.ofType("round_started")); n != 1 {
+		t.Fatalf("manche lancée sans unanimité (round_started=%d)", n)
+	}
+
+	// Deuxième clic → la manche suivante part immédiatement.
+	a.PostClientMsg(s1, proto.ClientMessage{Type: "next_round"})
+	deadline = time.Now().Add(2 * time.Second)
+	for len(c0.ofType("round_started")) < 2 && time.Now().Before(deadline) {
+		time.Sleep(2 * time.Millisecond)
+	}
+	if len(c0.ofType("round_started")) < 2 {
+		t.Fatal("manche suivante absente après le clic de tous les joueurs")
+	}
+}
+
 // Reconnexion en cours de partie : resync avec l'état courant.
 func TestReconnectResync(t *testing.T) {
 	a := newTestActor(t, proto.TableOptions{})
