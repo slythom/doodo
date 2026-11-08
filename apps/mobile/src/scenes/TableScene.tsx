@@ -4,7 +4,7 @@ import { useGLTF } from '@react-three/drei';
 import { Asset } from 'expo-asset';
 import { Suspense, useEffect, useMemo, useRef, useState } from 'react';
 import { StyleSheet } from 'react-native';
-import { AnimationAction, AnimationClip, AnimationMixer, LoopOnce } from 'three';
+import { AnimationAction, AnimationClip, AnimationMixer, LoopOnce, Vector2 } from 'three';
 import { SkeletonUtils } from 'three-stdlib';
 import type { Group, Object3D } from 'three';
 import type { DieValue, PlayerInfo } from '@doodo/shared';
@@ -140,6 +140,20 @@ export function cupScreenY(index: number, total: number): number {
 }
 
 const CUP_COLORS = ['#a86f3d', '#8a5a2b', '#9c6b4a', '#7a4f2e', '#b07840', '#6e4a30'];
+const CUP_RIM = '#3d2415';    // bourrelet cuir foncé
+const CUP_STITCH = '#d9b06c'; // surpiqûre claire
+
+// Silhouette du gobelet (rayon, hauteur) — bas évasé, corps resserré,
+// sommet légèrement bombé. Tournée autour de Y par latheGeometry.
+const CUP_PROFILE = [
+  new Vector2(0.42, 0.00),
+  new Vector2(0.41, 0.05),
+  new Vector2(0.34, 0.40),
+  new Vector2(0.30, 0.56),
+  new Vector2(0.20, 0.60),
+  new Vector2(0.10, 0.62),
+  new Vector2(0.00, 0.62),
+];
 
 // Gobelet d'un adversaire + sa pile de dés (compte) ou ses dés révélés (god).
 function OpponentCup({ index, total, count, isTurn, godDice, seat, onTap }: {
@@ -152,19 +166,37 @@ function OpponentCup({ index, total, count, isTurn, godDice, seat, onTap }: {
   const z = Math.sin(angle) * CUP_DIST;
   const cup = useRef<Group>(null);
   useFrame((s) => {
-    if (cup.current && isTurn) {
-      cup.current.position.y = 0.32 + Math.sin(s.clock.elapsedTime * 4) * 0.03;
-    }
+    if (!cup.current) return;
+    cup.current.position.y = isTurn
+      ? 0.02 + Math.sin(s.clock.elapsedTime * 4) * 0.03
+      : 0.02;
   });
   return (
     <group position={[x, 0, z]}>
-      <group ref={cup} position={[0, 0.32, 0]}>
+      <group ref={cup} position={[0, 0.02, 0]}>
+        {/* Corps du gobelet */}
         <mesh castShadow onClick={onTap} onPointerDown={onTap}>
-          <cylinderGeometry args={[0.3, 0.38, 0.6, 12]} />
-          <meshStandardMaterial color={isTurn ? '#e8b74a' : CUP_COLORS[seat % CUP_COLORS.length]} flatShading />
+          <latheGeometry args={[CUP_PROFILE, 20]} />
+          <meshStandardMaterial
+            color={isTurn ? '#e8b74a' : CUP_COLORS[seat % CUP_COLORS.length]}
+            flatShading roughness={0.75} />
+        </mesh>
+        {/* Bourrelet au bas */}
+        <mesh position={[0, 0.035, 0]} rotation={[Math.PI / 2, 0, 0]} castShadow>
+          <torusGeometry args={[0.405, 0.045, 8, 20]} />
+          <meshStandardMaterial color={isTurn ? '#b8862e' : CUP_RIM} flatShading />
+        </mesh>
+        {/* Surpiqûre */}
+        <mesh position={[0, 0.33, 0]} rotation={[Math.PI / 2, 0, 0]}>
+          <torusGeometry args={[0.353, 0.012, 6, 20]} />
+          <meshStandardMaterial color={CUP_STITCH} flatShading />
+        </mesh>
+        {/* Médaillon au sommet */}
+        <mesh position={[0, 0.615, 0]}>
+          <cylinderGeometry args={[0.09, 0.11, 0.02, 12]} />
+          <meshStandardMaterial color={isTurn ? '#b8862e' : CUP_RIM} flatShading />
         </mesh>
       </group>
-
     </group>
   );
 }
