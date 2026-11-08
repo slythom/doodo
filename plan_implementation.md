@@ -143,3 +143,15 @@ Le jeu est **entièrement jouable** à la fin de cette phase (UI fonctionnelle s
 
 - Le backend (phases 1-3) et l'app (phase 4) peuvent se chevaucher une fois `shared` figé (0.5 + 2.1).
 - La 3D ne bloque rien : l'app 2D de la phase 4 est déjà un produit jouable.
+
+---
+
+## Backlog / notes
+
+- **God mode réellement indétectable** : le flag `godMode` est encore présent dans
+  `lobby_state`/`game_started` pour tous les clients — il n'est caché que côté UI
+  (badge/panneau affichés uniquement aux détenteurs de `godPowers`). Pour le rendre
+  invisible même à un client modifié, filtrer les options par destinataire côté
+  serveur (payload par joueur, ou champ retiré pour les non-créateurs).
+- Resync : le client n'applique pas encore le snapshot `resync` (store.ts, « phase 2 »)
+  — y inclure `revealedDice`/`revealReady`/`call`/`resolution` quand il sera branché.

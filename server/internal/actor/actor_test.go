@@ -233,7 +233,8 @@ func TestReconnectResync(t *testing.T) {
 	}
 }
 
-// God mode de table : set_dice puis god_state visible de tous.
+// God mode de table : le créateur seul choisit ses dés et reçoit god_state ;
+// l'autre joueur joue à l'aveugle (set_dice ignoré, pas de god_state).
 func TestGodModeTable(t *testing.T) {
 	opts := proto.DefaultTableOptions()
 	opts.GodMode = true
@@ -245,21 +246,30 @@ func TestGodModeTable(t *testing.T) {
 
 	a.PostClientMsg(0, proto.ClientMessage{Type: "start_game"})
 	waitFor(t, c0, "choose_dice", 2*time.Second)
+	if c1.last("choose_dice") != nil {
+		t.Error("choose_dice reçu par un joueur non créateur")
+	}
 
 	payload, _ := mustJSON(proto.GodAction{Action: "set_dice", Dice: []int{1, 1, 1, 1, 1}})
-	a.PostClientMsg(0, proto.ClientMessage{Type: "god_action", Payload: payload})
+	// Refusé pour p1 (non créateur) : n'affecte pas l'attente du tirage.
 	a.PostClientMsg(1, proto.ClientMessage{Type: "god_action", Payload: payload})
+	time.Sleep(20 * time.Millisecond)
+	if len(c0.ofType("round_started")) != 0 {
+		t.Fatal("manche lancée sans le choix du créateur")
+	}
+	a.PostClientMsg(0, proto.ClientMessage{Type: "god_action", Payload: payload})
 
 	msg := waitFor(t, c0, "round_started", 2*time.Second)
 	rs := msg.Payload.(proto.RoundStartedPayload)
 	if len(rs.YourDice) != 5 || rs.YourDice[0] != 1 {
 		t.Errorf("dés imposés non appliqués: %v", rs.YourDice)
 	}
+	waitFor(t, c1, "round_started", 2*time.Second)
 	if g := c0.last("god_state"); g == nil {
-		t.Error("god_state absent en mode dieu")
+		t.Error("god_state absent pour le créateur")
 	}
-	if g := c1.last("god_state"); g == nil {
-		t.Error("god_state absent pour p1")
+	if g := c1.last("god_state"); g != nil {
+		t.Error("god_state reçu par un joueur non créateur")
 	}
 }
 

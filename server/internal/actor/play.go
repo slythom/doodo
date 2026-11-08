@@ -61,16 +61,21 @@ func (a *Actor) startRound() {
 	a.bumpGen()
 
 	if a.opts.GodMode {
-		// Mode dieu : chaque joueur choisit ses dés (spec §4.5).
+		// Mode dieu : le créateur seul choisit ses dés (spec §4.5).
 		a.phase = phaseGodRoll
 		a.waitingDice = map[int]bool{}
 		for _, p := range a.alive() {
-			if !p.bot && p.connected {
+			if p.seat == a.creator && !p.bot && p.connected {
 				a.waitingDice[p.seat] = true
 				a.sendTo(p, "choose_dice", map[string]int64{
 					"deadline": time.Now().Add(a.godRollWait).UnixMilli(),
 				})
 			}
+		}
+		if len(a.waitingDice) == 0 {
+			// Créateur hors jeu ou déconnecté : tirage aléatoire pour tous.
+			a.rollAndDeal(palifico)
+			return
 		}
 		a.pendingPalifico = palifico
 		a.after(a.godRollWait, "godroll", -1)
@@ -485,7 +490,7 @@ func (a *Actor) handleBotMove(e evBotMove) {
 
 func (a *Actor) handleGodAction(p *player, pl proto.GodAction) {
 	canAll := p.admin
-	canDice := p.admin || (a.opts.GodMode && !p.spectator)
+	canDice := p.admin || (a.opts.GodMode && p.seat == a.creator)
 	if !canAll && !canDice {
 		return
 	}

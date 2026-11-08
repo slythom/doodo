@@ -3,6 +3,7 @@ import type {
   Bid,
   DieValue,
   GamePhase,
+  GodAction,
   PlayerInfo,
   Standing,
   ServerMessage,
@@ -31,8 +32,10 @@ export interface GameState {
   currentBid: { seat: number; bid: Bid } | null;
   turnSeat: number | null;
   turnDeadline: number | null;
-  /** Vue god : dés de tous (admin/mode dieu uniquement). */
+  /** Vue god : dés de tous (admin, ou créateur en mode dieu). */
   godDice: Record<number, DieValue[]> | null;
+  /** Pouvoirs god accordés par le serveur (admin / créateur en mode dieu). */
+  godPowers: GodAction['action'][] | null;
   /** Deadline de choix de dés en mode dieu (phase god_roll). */
   chooseDiceDeadline: number | null;
   /** État matchmaking (si en file de partie rapide). */
@@ -64,6 +67,7 @@ export const initialState: GameState = {
   turnSeat: null,
   turnDeadline: null,
   godDice: null,
+  godPowers: null,
   chooseDiceDeadline: null,
   matchmaking: null,
   revealedDice: null,
@@ -166,6 +170,9 @@ export function applyServerMessage(
       break;
     case 'god_state':
       set(() => ({ godDice: msg.payload.allDice }));
+      break;
+    case 'god_powers':
+      set(() => ({ godPowers: msg.payload.actions }));
       break;
     case 'chat':
       set((s) => ({

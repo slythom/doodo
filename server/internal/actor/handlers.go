@@ -25,6 +25,7 @@ func (a *Actor) handleJoin(req JoinRequest) {
 			res.Seat, res.Spectator = p.seat, p.spectator
 			req.ack <- res
 			a.sendJoined(p)
+			a.sendGodPowers(p)
 			if !p.spectator {
 				a.broadcast("player_reconnected", proto.ConnEventPayload{Seat: p.seat})
 			}
@@ -57,13 +58,7 @@ func (a *Actor) handleJoin(req JoinRequest) {
 	res.Seat = p.seat
 	req.ack <- res
 	a.sendJoined(p)
-	if p.admin {
-		a.sendTo(p, "god_powers", proto.GodPowersPayload{
-			Actions: []string{"set_dice", "force_resolve", "kick", "end_game"},
-		})
-	} else if a.opts.GodMode {
-		a.sendTo(p, "god_powers", proto.GodPowersPayload{Actions: []string{"set_dice"}})
-	}
+	a.sendGodPowers(p)
 	a.emitLobby()
 }
 
@@ -102,6 +97,18 @@ func (a *Actor) sendJoined(p *player) {
 	a.sendTo(p, "joined", proto.JoinedPayload{
 		Code: a.code, Seat: p.seat, Spectator: p.spectator,
 	})
+}
+
+// sendGodPowers annonce les pouvoirs god du joueur — admin : tout ;
+// mode dieu de table : set_dice pour le créateur seul.
+func (a *Actor) sendGodPowers(p *player) {
+	if p.admin {
+		a.sendTo(p, "god_powers", proto.GodPowersPayload{
+			Actions: []string{"set_dice", "force_resolve", "kick", "end_game"},
+		})
+	} else if a.opts.GodMode && p.seat == a.creator {
+		a.sendTo(p, "god_powers", proto.GodPowersPayload{Actions: []string{"set_dice"}})
+	}
 }
 
 func (a *Actor) humanCount() int {

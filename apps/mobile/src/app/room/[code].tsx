@@ -43,7 +43,9 @@ export default function Room() {
         <ScrollView contentContainerStyle={styles.center}>
           <Text style={styles.code}>{s.roomCode ?? code}</Text>
           <Text style={styles.hint}>Partage ce code à tes amis</Text>
-          {s.options.godMode && <Text style={styles.godBadge}>⚡ Mode dieu activé</Text>}
+          {s.options.godMode && (s.godPowers?.length ?? 0) > 0 && (
+            <Text style={styles.godBadge}>⚡ Mode dieu activé</Text>
+          )}
           <View style={styles.players}>
             {s.players.map((p) => (
               <View key={p.seat} style={styles.playerRow}>
@@ -81,8 +83,10 @@ export default function Room() {
             godAction({ action: 'set_dice', dice })} />
         </View>
       )}
-      {s.phase === 'god_roll' && spectating && (
-        <Text style={styles.centerText}>En attente des choix de dés…</Text>
+      {/* Mode dieu : le créateur seul reçoit choose_dice → phase god_roll.
+          Les autres restent sur round_roll en attendant le lancement. */}
+      {s.phase === 'round_roll' && (
+        <Text style={styles.centerText}>Lancement de la manche…</Text>
       )}
 
       {inGame && (
@@ -113,7 +117,8 @@ export default function Room() {
               </Pressable>
             ))}
           </View>
-          <GameBadges godMode={s.options.godMode} palifico={false} />
+          <GameBadges godMode={s.options.godMode && (s.godPowers?.length ?? 0) > 0}
+            palifico={false} />
           <Text style={styles.turn}>
             {myTurn ? 'À toi de jouer !' : `Tour de ${s.players.find(p => p.seat === s.turnSeat)?.name ?? '…'}`}
           </Text>
@@ -182,7 +187,8 @@ export default function Room() {
 
       <Chat chat={s.chat} onSend={(text, emote) => send({ type: 'chat', payload: { text, emote } })}
         playerName={(seat) => seat >= 100 ? 'Spectateur' : s.players.find(p => p.seat === seat)?.name ?? `#${seat}`} />
-      <GodPanel players={s.players} isAdmin={session.isAdmin} godMode={s.options.godMode}
+      <GodPanel players={s.players} isAdmin={session.isAdmin}
+        godMode={(s.godPowers?.length ?? 0) > 0}
         myDice={s.yourDice} onAction={godAction} />
       {s.lastError && <Text style={styles.error}>{s.lastError.message}</Text>}
       {inLobby && s.mySeat === null && (

@@ -361,9 +361,10 @@ func (a *Actor) sendError(p *player, code, message string) {
 	a.sendTo(p, "error", proto.ErrorPayload{Code: code, Message: message})
 }
 
-// godRecipients : joueurs recevant god_state (admins + mode dieu).
+// godRecipient : joueurs recevant god_state — admins, ou le créateur
+// seul quand la table est en mode dieu.
 func (a *Actor) godRecipient(p *player) bool {
-	return p.admin || (a.opts.GodMode && !p.spectator)
+	return p.admin || (a.opts.GodMode && p.seat == a.creator)
 }
 
 // diceInts convertit []game.DieValue → []int pour le protocole.
